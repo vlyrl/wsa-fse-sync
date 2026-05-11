@@ -128,6 +128,10 @@ async function fetchData() {
     // Update Firebase if available
     if (db) {
       try {
+        // Clear existing fleet to remove airplanes not in FSEconomy
+        await db.ref('fleet').remove();
+        console.log('🗑️ Cleared existing fleet');
+        
         for (const ac of aircraft) {
           await db.ref(`fleet/${ac.registration}`).update({
             status: ac.status,
