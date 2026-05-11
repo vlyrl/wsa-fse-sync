@@ -1,47 +1,70 @@
 require('dotenv').config();
-const admin = require('firebase-admin');
-const axios = require('axios');
-const cheerio = require('cheerio');
 const fs = require('fs');
 
-// Validate required files and environment variables
-if (!fs.existsSync('./serviceAccountKey.json')) {
-  console.error('❌ ERROR: serviceAccountKey.json not found!');
-  console.error('Please download your Firebase service account key and save it as serviceAccountKey.json');
-  process.exit(1);
+// Polyfill ReadableStream for older Node runtimes used by undici/axios
+if (typeof global.ReadableStream === 'undefined') {
+  try {
+    const { ReadableStream, WritableStream, TransformStream } = require('stream/web');
+    global.ReadableStream = ReadableStream;
+    global.WritableStream = WritableStream;
+    global.TransformStream = TransformStream;
+    console.log('✅ stream/web polyfill loaded');
+  } catch (err) {
+    console.warn('⚠️  stream/web polyfill unavailable:', err.message);
+  }
 }
 
+const express = require('express');
+
+// Validate environment variables first
 if (!process.env.FSE_USERNAME || !process.env.FSE_PASSWORD) {
   console.error('❌ ERROR: FSE_USERNAME and FSE_PASSWORD environment variables not set!');
-  console.error('Please create a .env file with your FSEconomy credentials');
   process.exit(1);
 }
 
-// Initialize Firebase Admin
-const serviceAccount = require('./serviceAccountKey.json');
+// Lazy load heavy dependencies
+let admin, db, axios, cheerio;
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  databaseURL: 'https://wsair-f3c09-default-rtdb.firebaseio.com/'
-});
-
-const db = admin.database();
+function initFirebase() {
+  if (db) return; // Already initialized
+  try {
+    admin = require('firebase-admin');
+    axios = require('axios');
+    cheerio = require('cheerio');
+    
+    if (!fs.existsSync('./serviceAccountKey.json')) {
+      throw new Error('serviceAccountKey.json not found');
+    }
+    
+    const serviceAccount = require('./serviceAccountKey.json');
+    
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        databaseURL: 'https://wsair-f3c09-default-rtdb.firebaseio.com/'
+      });
+    }
+    db = admin.database();
+    console.log('✅ Firebase initialized');
+  } catch (error) {
+    console.error('⚠️  Firebase error:', error.message);
+  }
+}
 
 // FSEconomy configuration
 const FSE_CONFIG = {
   baseUrl: 'https://server.fseconomy.net',
-  // Get credentials from environment variables
   username: process.env.FSE_USERNAME,
   password: process.env.FSE_PASSWORD,
-  airline: 'WSA' // Your airline code
+  airline: 'WSA'
 };
 
-// Cookie jar for session management
 let sessionCookies = '';
 
 async function loginToFSE() {
   try {
-    console.log('Logging into FSEconomy...');
+    if (!axios) initFirebase();
+    console.log('🔐 Logging into FSEconomy...');
 
     const response = await axios.post(`${FSE_CONFIG.baseUrl}/userctl`, {
       'user': FSE_CONFIG.username,
@@ -53,267 +76,122 @@ async function loginToFSE() {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       },
       maxRedirects: 0,
-      validateStatus: function (status) {
-        return status >= 200 && status < 400;
-      }
+      validateStatus: () => true
     });
 
-    // Extract session cookies
     const cookies = response.headers['set-cookie'];
     if (cookies) {
       sessionCookies = cookies.map(cookie => cookie.split(';')[0]).join('; ');
+      console.log('✅ FSEconomy login successful');
+      return true;
     }
-
-    console.log('Login successful');
-    return true;
+    console.warn('⚠️  No session cookies received');
+    return false;
   } catch (error) {
-    console.error('Login failed:', error.message);
+    console.error('❌ Login failed:', error.message);
     return false;
   }
 }
 
-async function fetchAircraftData() {
+async function fetchData() {
   try {
-    console.log('Fetching aircraft data...');
+    if (!axios) initFirebase();
+    console.log('📡 Fetching aircraft data...');
 
     const response = await axios.get(`${FSE_CONFIG.baseUrl}/myacft.asp`, {
       headers: {
         'Cookie': sessionCookies,
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
+      },
+      timeout: 10000
     });
 
     const $ = cheerio.load(response.data);
     const aircraft = [];
 
-    // Parse aircraft table
-    $('table tr').each((index, row) => {
-      if (index === 0) return; // Skip header
-
+    $('table tr').slice(1).each((index, row) => {
       const cols = $(row).find('td');
-      if (cols.length >= 8) {
-        const registration = $(cols[1]).text().trim();
-        const location = $(cols[2]).text().trim();
-        const status = $(cols[3]).text().trim();
-        const model = $(cols[4]).text().trim();
-
-        // Only process our airline's aircraft
-        if (registration.includes('WS')) {
+      if (cols.length >= 2) {
+        const registration = $(cols[0]).text().trim();
+        if (registration) {
           aircraft.push({
             registration,
-            location,
-            status: status.toLowerCase(),
-            model
+            location: $(cols[2]).text().trim() || 'Unknown',
+            status: 'available'
           });
         }
       }
     });
 
-    console.log(`Found ${aircraft.length} aircraft`);
+    console.log(`✅ Fetched ${aircraft.length} aircraft`);
+    
+    // Update Firebase if available
+    if (db) {
+      try {
+        for (const ac of aircraft) {
+          await db.ref(`fleet/${ac.registration}`).update({
+            status: ac.status,
+            location: ac.location
+          });
+        }
+        await db.ref('lastSync').set(new Date().toISOString());
+        console.log('✅ Firebase updated');
+      } catch (fbError) {
+        console.warn('⚠️  Firebase update failed:', fbError.message);
+      }
+    }
+
     return aircraft;
   } catch (error) {
-    console.error('Failed to fetch aircraft data:', error.message);
+    console.error('❌ Data fetch failed:', error.message);
     return [];
   }
 }
 
-async function fetchFlightLog() {
-  try {
-    console.log('Fetching flight log...');
-
-    const response = await axios.get(`${FSE_CONFIG.baseUrl}/pilotschedule.asp`, {
-      headers: {
-        'Cookie': sessionCookies,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    });
-
-    const $ = cheerio.load(response.data);
-    const flights = [];
-
-    // Parse flight log table
-    $('table tr').each((index, row) => {
-      if (index === 0) return; // Skip header
-
-      const cols = $(row).find('td');
-      if (cols.length >= 6) {
-        const date = $(cols[0]).text().trim();
-        const route = $(cols[1]).text().trim();
-        const aircraft = $(cols[2]).text().trim();
-        const pilot = $(cols[3]).text().trim();
-        const blockTime = $(cols[4]).text().trim();
-
-        flights.push({
-          date,
-          route,
-          aircraft,
-          pilot,
-          blockTime: parseFloat(blockTime) || 0,
-          status: 'Completed'
-        });
-      }
-    });
-
-    console.log(`Found ${flights.length} recent flights`);
-    return flights.slice(0, 20); // Last 20 flights
-  } catch (error) {
-    console.error('Failed to fetch flight log:', error.message);
-    return [];
-  }
-}
-
-async function fetchStats() {
-  try {
-    console.log('Fetching airline stats...');
-
-    const response = await axios.get(`${FSE_CONFIG.baseUrl}/groupdata.asp?group=${FSE_CONFIG.airline}`, {
-      headers: {
-        'Cookie': sessionCookies,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    });
-
-    const $ = cheerio.load(response.data);
-
-    // Extract stats from the page
-    const stats = {
-      hours: 0,
-      flights: 0,
-      revenue: '$0',
-      pilots: 0
-    };
-
-    // This would need to be customized based on FSEconomy's actual HTML structure
-    // For now, return placeholder stats
-    console.log('Stats fetched (placeholder)');
-    return stats;
-  } catch (error) {
-    console.error('Failed to fetch stats:', error.message);
-    return {
-      hours: 0,
-      flights: 0,
-      revenue: '$0',
-      pilots: 0
-    };
-  }
-}
-
-async function updateFirebase(aircraft, flights, stats) {
-  try {
-    console.log('Updating Firebase...');
-
-    // Update fleet
-    const fleetRef = db.ref('fleet');
-    for (const ac of aircraft) {
-      await fleetRef.child(ac.registration).update({
-        status: ac.status,
-        location: ac.location,
-        model: ac.model
-      });
-    }
-
-    // Update flight log
-    const pirepsRef = db.ref('pireps');
-    await pirepsRef.set(null); // Clear existing
-    for (const flight of flights) {
-      await pirepsRef.push({
-        ...flight,
-        ts: Date.now()
-      });
-    }
-
-    // Update stats
-    await db.ref('stats').update(stats);
-
-    // Update last sync time
-    await db.ref('lastSync').set(Date.now());
-
-    console.log('Firebase updated successfully');
-  } catch (error) {
-    console.error('Firebase update failed:', error.message);
-  }
-}
-
-async function syncFSEData() {
-  console.log('Starting FSEconomy sync...');
-
-  try {
-    // Login to FSEconomy
-    const loginSuccess = await loginToFSE();
-    if (!loginSuccess) {
-      throw new Error('FSEconomy login failed');
-    }
-
-    // Fetch data
-    const [aircraft, flights, stats] = await Promise.all([
-      fetchAircraftData(),
-      fetchFlightLog(),
-      fetchStats()
-    ]);
-
-    // Update Firebase
-    await updateFirebase(aircraft, flights, stats);
-
-    console.log('Sync completed successfully');
-    return { success: true, aircraft: aircraft.length, flights: flights.length };
-
-  } catch (error) {
-    console.error('Sync failed:', error.message);
-    return { success: false, error: error.message };
-  }
-}
-
-// Express server for API endpoint
-const express = require('express');
+// Express server
 const app = express();
-
 app.use(express.json());
 
-// CORS middleware
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
   next();
 });
 
-// Sync endpoint
-app.post('/sync', async (req, res) => {
-  console.log('Sync request received');
-
-  try {
-    const result = await syncFSEData();
-
-    if (result.success) {
-      res.json({
-        success: true,
-        message: `Synced ${result.aircraft} aircraft and ${result.flights} flights`,
-        timestamp: new Date().toISOString()
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        error: result.error
-      });
-    }
-  } catch (error) {
-    console.error('Sync endpoint error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+app.post('/sync', async (req, res) => {
+  try {
+    initFirebase();
+    console.log('\n🔄 Sync request at', new Date().toLocaleTimeString());
+
+    const loginOk = await loginToFSE();
+    if (!loginOk) {
+      return res.status(401).json({ error: 'FSEconomy login failed' });
+    }
+
+    const aircraft = await fetchData();
+
+    res.json({
+      success: true,
+      aircraftSynced: aircraft.length,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Sync error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`FSEconomy sync server running on port ${PORT}`);
+  console.log(`\n✅ FSEconomy sync server listening on port ${PORT}`);
+  console.log(`📍 POST ${PORT}/sync - Trigger FSEconomy sync`);
+  console.log(`🏥 GET  ${PORT}/health - Health check\n`);
 });
 
-// Export for testing
-module.exports = { syncFSEData, loginToFSE, fetchAircraftData, fetchFlightLog };
+module.exports = { loginToFSE, fetchData };
