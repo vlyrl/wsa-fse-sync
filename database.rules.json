@@ -1,0 +1,40 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "fleet": {
+      ".read": true,
+      ".write": false
+    },
+    "stats": {
+      ".read": true,
+      ".write": false
+    },
+    "pireps": {
+      ".read": true,
+      ".write": false
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "usersPublic": {
+      ".read": true,
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "pilotCount": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "jobsAvailable": {
+      ".read": true
+    },
+    "jobsLastSync": {
+      ".read": true
+    }
+  }
+}

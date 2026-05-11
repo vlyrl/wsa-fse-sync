@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Western Skies Air — Pilot Roster</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCGHP1zInIv94yKym_nzpFrBRz6dtYwlps",
+    authDomain: "wsair-f3c09.firebaseapp.com",
+    projectId: "wsair-f3c09",
+    storageBucket: "wsair-f3c09.firebasestorage.app",
+    messagingSenderId: "712143874991",
+    appId: "1:712143874991:web:3ca4c58de815c8cf421d5a",
+    measurementId: "G-MWH2HGV7HD"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const auth = getAuth(app);
+
+  function showToast(msg, isError = false) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.style.background = isError ? '#c0392b' : 'var(--gold)';
+    toast.style.color = '#000';
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3800);
+  }
+
+  async function loadRoster() {
+    const body = document.getElementById('roster-body');
+    const countEl = document.getElementById('roster-count');
+    if (!body || !countEl) return;
+
+    try {
+      const snap = await get(ref(db, 'usersPublic'));
+      let pilots = [];
+
+      if (snap.exists() && typeof snap.val() === 'object') {
+        pilots = Object.entries(snap.val() || {}).map(([uid, data]) => ({ uid, ...(data || {}) }));
+      } else if (auth.currentUser) {
+        const userSnap = await get(ref(db, 'users'));
+        if (userSnap.exists() && typeof userSnap.val() === 'object') {
+          pilots = Object.entries(userSnap.val() || {}).map(([uid, data]) => ({ uid, ...(data || {}) }));
+        }
+      }
+
+      if (!pilots.length) {
+        body.innerHTML = '<tr><td colspan="4">No pilots have joined the roster yet.</td></tr>';
+        countEl.textContent = '0';
+        return;
+      }
+
+      const sorted = pilots.sort((a, b) => (a.lastName || '').localeCompare(b.lastName || '') || (a.firstName || '').localeCompare(b.firstName || ''));
+      countEl.textContent = String(sorted.length);
+      body.innerHTML = sorted.map(pilot => {
+        const name = [pilot.firstName, pilot.lastName].filter(Boolean).join(' ') || 'Pilot';
+        const location = pilot.location || 'Unknown';
+        const bio = pilot.bio ? pilot.bio.substring(0, 80) : 'No bio available';
+        const date = pilot.createdAt || pilot.updatedAt || 0;
+        return `<tr>
+          <td>${name}</td>
+          <td>${location}</td>
+          <td>${bio}</td>
+          <td>${date ? new Date(date).toLocaleDateString() : '-'}</td>
+        </tr>`;
+      }).join('');
+    } catch (error) {
+      console.error('Failed to load roster:', error);
+      body.innerHTML = `<tr><td colspan="4">Unable to load roster: ${error.message || 'unknown error'}.</td></tr>`;
+      showToast('Could not load pilot roster: ' + (error.message || 'unknown error'), true);
+    }
+  }
+
+  window.signOutAndRedirect = async function() {
+    try {
+      await signOut(auth);
+      showToast('Signed out successfully');
+      setTimeout(() => window.location.href = 'western-skies-air-live_1.html', 400);
+    } catch (error) {
+      console.error('Sign out failed:', error);
+      showToast('Sign out failed', true);
+    }
+  };
+
+  onAuthStateChanged(auth, user => {
+    const signOutLink = document.getElementById('nav-signout-btn');
+    if (signOutLink) {
+      signOutLink.style.display = user ? 'inline-block' : 'none';
+    }
+  });
+
+  window.addEventListener('DOMContentLoaded', () => {
+    loadRoster();
+  });
+</script>
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --gold: #c8860a; --gold-light: #f0a830;
+  --black: #0f0f0f; --surface: #141414; --surface2: #1c1c1c;
+  --border: rgba(255,255,255,0.07);
+  --text: #fff; --muted: #888;
+}
+html { scroll-behavior: smooth; }
+body { background: linear-gradient(160deg, #050d1a 0%, #0a1628 30%, #0d2040 60%, #3d1e04 100%); color: var(--text); font-family:'Barlow',sans-serif; min-height:100vh; }
+nav { position:fixed; top:0; left:0; right:0; z-index:100; background:rgba(10,10,10,0.92); backdrop-filter:blur(12px); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 32px; height:64px; }
+.nav-logo { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:0.12em; color:var(--text); text-decoration:none; }
+.nav-logo span { color:var(--gold); }
+.nav-actions { display:flex; gap:12px; align-items:center; }
+.nav-cta { font-family:'Barlow Condensed',sans-serif; font-size:11px; letter-spacing:0.25em; text-transform:uppercase; color:var(--gold); border:1px solid var(--gold); padding:8px 20px; text-decoration:none; transition:background 0.2s,color 0.2s; }
+.nav-cta:hover { background:var(--gold); color:#000; }
+.container { max-width: 1000px; margin: 120px auto 80px; padding: 0 24px; }
+.section-eyebrow { font-family:'Barlow Condensed',sans-serif; font-size:10px; letter-spacing:0.4em; text-transform:uppercase; color:var(--gold); margin-bottom:16px; }
+.section-title { font-family:'Bebas Neue',sans-serif; font-size:clamp(40px,5vw,62px); line-height:1; margin-bottom:16px; }
+.section-sub { font-family:'Barlow',sans-serif; font-size:15px; color:var(--muted); max-width:760px; margin-bottom:32px; line-height:1.7; }
+.roster-card { background:var(--surface); border:1px solid var(--border); padding:36px; border-radius:16px; box-shadow:0 16px 40px rgba(0,0,0,0.2); }
+.roster-summary { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:24px; }
+.roster-summary span { font-family:'Bebas Neue',sans-serif; font-size:32px; color:var(--gold); }
+.roster-note { font-family:'Barlow',sans-serif; font-size:13px; color:var(--muted); }
+.table-wrap { overflow-x:auto; }
+.roster-table { width:100%; border-collapse:collapse; }
+.roster-table th, .roster-table td { padding:18px 16px; border-bottom:1px solid var(--border); text-align:left; font-family:'Barlow Condensed',sans-serif; font-size:13px; color:var(--text); }
+.roster-table th { font-size:10px; letter-spacing:0.35em; text-transform:uppercase; color:var(--muted); }
+.roster-table tr:hover { background:rgba(255,255,255,0.04); }
+.toast { position:fixed; bottom:32px; right:32px; background:var(--gold); color:#000; font-family:'Barlow Condensed',sans-serif; font-size:12px; letter-spacing:0.2em; text-transform:uppercase; font-weight:600; padding:14px 24px; transform:translateY(100px); opacity:0; transition:transform 0.4s,opacity 0.4s; z-index:999; }
+.toast.show { transform:translateY(0); opacity:1; }
+@media (max-width:768px) { .container { margin-top:100px; } nav { padding:0 18px; } .roster-summary { flex-direction:column; align-items:flex-start; } }
+</style>
+</head>
+<body>
+<nav>
+  <a class="nav-logo" href="western-skies-air-live_1.html">WESTERN <span>SKIES</span> AIR</a>
+  <div class="nav-actions">
+    <a class="nav-cta" href="western-skies-air-live_1.html">Back to Site</a>
+    <a class="nav-cta" href="profile.html">Profile</a>    <a class="nav-cta" href="staff.html">Staff</a>    <a id="nav-signout-btn" class="nav-cta" href="#" onclick="signOutAndRedirect(); return false;" style="display:none;">Sign Out</a>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="section-eyebrow">Pilot Roster</div>
+  <div class="section-title">All Registered Pilots</div>
+  <div class="section-sub">This roster shows every pilot entry stored in the site. Sign in to update your own profile.</div>
+  <div class="roster-card">
+    <div class="roster-summary">
+      <span id="roster-count">0</span>
+      <div class="roster-note">Pilot profiles are populated from the roster database and updated when pilots save their profile.</div>
+    </div>
+    <div class="table-wrap">
+      <table class="roster-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Location</th>
+            <th>Bio</th>
+            <th>Joined</th>
+          </tr>
+        </thead>
+        <tbody id="roster-body">
+          <tr><td colspan="4">Loading roster…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+</body>
+</html>

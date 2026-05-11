@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Western Skies Air — Profile</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getAuth, onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCGHP1zInIv94yKym_nzpFrBRz6dtYwlps",
+    authDomain: "wsair-f3c09.firebaseapp.com",
+    projectId: "wsair-f3c09",
+    storageBucket: "wsair-f3c09.firebasestorage.app",
+    messagingSenderId: "712143874991",
+    appId: "1:712143874991:web:3ca4c58de815c8cf421d5a",
+    measurementId: "G-MWH2HGV7HD"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const auth = getAuth(app);
+
+  function showToast(msg, isError = false) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.background = isError ? '#c0392b' : 'var(--gold)';
+    t.style.color = '#000';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3800);
+  }
+
+  async function loadProfile(user) {
+    document.getElementById('profile-email').textContent = user.email || '';
+    try {
+      const snap = await get(ref(db, `users/${user.uid}`));
+      const data = snap.exists() ? snap.val() : {};
+      document.getElementById('first-name').value = data.firstName || (user.displayName ? user.displayName.split(' ')[0] : '');
+      document.getElementById('last-name').value = data.lastName || (user.displayName ? user.displayName.split(' ').slice(1).join(' ') : '');
+      document.getElementById('phone').value = data.phone || '';
+      document.getElementById('location').value = data.location || '';
+      document.getElementById('bio').value = data.bio || '';
+    } catch (error) {
+      console.error('Failed to load profile:', error);
+      showToast('Could not load profile data', true);
+    }
+  }
+
+  onAuthStateChanged(auth, user => {
+    if (!user) {
+      window.location.href = 'login.html';
+      return;
+    }
+    loadProfile(user);
+  });
+
+  window.saveProfile = async function() {
+    const user = auth.currentUser;
+    if (!user) {
+      showToast('Sign in first', true);
+      return;
+    }
+
+    const firstName = document.getElementById('first-name').value.trim();
+    const lastName = document.getElementById('last-name').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    const location = document.getElementById('location').value.trim().toUpperCase();
+    const bio = document.getElementById('bio').value.trim();
+
+    const profile = {
+      firstName,
+      lastName,
+      phone,
+      location,
+      bio,
+      updatedAt: Date.now()
+    };
+
+    try {
+      await set(ref(db, `users/${user.uid}`), profile);
+      await set(ref(db, `usersPublic/${user.uid}`), {
+        firstName,
+        lastName,
+        location,
+        bio,
+        updatedAt: Date.now()
+      });
+      const displayName = [firstName, lastName].filter(Boolean).join(' ');
+      if (displayName) {
+        try {
+          await updateProfile(user, { displayName });
+        } catch (authError) {
+          console.warn('Could not update auth display name:', authError);
+        }
+      }
+      showToast('Profile updated successfully');
+    } catch (error) {
+      console.error('Profile save failed:', error);
+      showToast('Profile save failed: ' + (error.message || 'Unknown error'), true);
+    }
+  };
+
+  window.signOutAndRedirect = async function() {
+    try {
+      await signOut(auth);
+      showToast('Signed out successfully');
+      setTimeout(() => window.location.href = 'western-skies-air-live_1.html', 500);
+    } catch (error) {
+      console.error('Sign out failed:', error);
+      showToast('Sign out failed', true);
+    }
+  };
+</script>
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --gold: #c8860a; --gold-light: #f0a830;
+  --black: #0f0f0f; --surface: #141414; --surface2: #1c1c1c;
+  --border: rgba(255,255,255,0.07);
+  --text: #fff; --muted: #888;
+}
+html { scroll-behavior: smooth; }
+body { background: linear-gradient(160deg, #050d1a 0%, #0a1628 30%, #0d2040 60%, #3d1e04 100%); color: var(--text); font-family:'Barlow',sans-serif; min-height:100vh; }
+nav { position:fixed; top:0; left:0; right:0; z-index:100; background:rgba(10,10,10,0.92); backdrop-filter:blur(12px); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 32px; height:64px; }
+.nav-logo { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:0.12em; color:var(--text); text-decoration:none; }
+.nav-logo span { color:var(--gold); }
+.nav-actions { display:flex; gap:12px; align-items:center; }
+.nav-cta { font-family:'Barlow Condensed',sans-serif; font-size:11px; letter-spacing:0.25em; text-transform:uppercase; color:var(--gold); border:1px solid var(--gold); padding:8px 20px; text-decoration:none; transition:background 0.2s,color 0.2s; }
+.nav-cta:hover { background:var(--gold); color:#000; }
+.container { max-width: 700px; margin: 120px auto 80px; padding: 0 24px; }
+.section-eyebrow { font-family:'Barlow Condensed',sans-serif; font-size:10px; letter-spacing:0.4em; text-transform:uppercase; color:var(--gold); margin-bottom:16px; }
+.section-title { font-family:'Bebas Neue',sans-serif; font-size:clamp(36px,5vw,50px); line-height:1; margin-bottom:16px; }
+.section-sub { font-family:'Barlow',sans-serif; font-size:15px; color:var(--muted); max-width:620px; margin-bottom:32px; line-height:1.7; }
+.profile-card { background:var(--surface); border:1px solid var(--border); padding:36px; border-radius:16px; box-shadow:0 16px 40px rgba(0,0,0,0.2); }
+.profile-field { display:flex; flex-direction:column; gap:10px; margin-bottom:20px; }
+.profile-field label { font-family:'Barlow Condensed',sans-serif; font-size:11px; letter-spacing:0.22em; text-transform:uppercase; color:var(--muted); }
+.profile-field input,
+.profile-field textarea { width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text); font-family:'Barlow Condensed',sans-serif; font-size:15px; padding:14px 16px; outline:none; }
+.profile-field textarea { min-height:120px; resize:vertical; }
+.profile-actions { display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin-top:12px; }
+.profile-actions .button { font-family:'Barlow Condensed',sans-serif; font-size:12px; letter-spacing:0.3em; text-transform:uppercase; background:var(--gold); color:#000; border:none; padding:14px 24px; cursor:pointer; text-decoration:none; }
+.profile-note { font-size:13px; color:var(--muted); }
+.toast { position: fixed; bottom: 32px; right: 32px; background: var(--gold); color: #000; font-family: 'Barlow Condensed',sans-serif; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600; padding: 14px 24px; transform: translateY(100px); opacity: 0; transition: transform 0.4s, opacity 0.4s; z-index: 999; }
+.toast.show { transform: translateY(0); opacity: 1; }
+@media (max-width:768px) { .container { margin-top:100px; } nav { padding:0 18px; } .profile-card { padding:28px; } }
+</style>
+</head>
+<body>
+<nav>
+  <a class="nav-logo" href="western-skies-air-live_1.html">WESTERN <span>SKIES</span> AIR</a>
+  <div class="nav-actions">
+    <a class="nav-cta" href="western-skies-air-live_1.html">Back to Site</a>
+    <a class="nav-cta" href="roster.html">Roster</a>
+    <a class="nav-cta" href="staff.html">Staff</a>
+    <a class="nav-cta" href="#" onclick="signOutAndRedirect(); return false;">Sign Out</a>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="section-eyebrow">Pilot Profile</div>
+  <div class="section-title">Your Info</div>
+  <div class="section-sub">Update your profile details here. Your information is stored securely in Firebase and will appear in the site greeting.</div>
+  <div class="profile-card">
+    <div class="profile-field">
+      <label>Email</label>
+      <div id="profile-email" style="font-family:'Barlow Condensed',sans-serif;color:var(--text);font-size:15px;"></div>
+    </div>
+    <div class="profile-field">
+      <label for="first-name">First Name</label>
+      <input id="first-name" type="text" placeholder="First name">
+    </div>
+    <div class="profile-field">
+      <label for="last-name">Last Name</label>
+      <input id="last-name" type="text" placeholder="Last name">
+    </div>
+    <div class="profile-field">
+      <label for="phone">Phone</label>
+      <input id="phone" type="text" placeholder="Phone number">
+    </div>
+    <div class="profile-field">
+      <label for="location">Home Base / Location</label>
+      <input id="location" type="text" placeholder="e.g. KDAL">
+    </div>
+    <div class="profile-field">
+      <label for="bio">About You</label>
+      <textarea id="bio" placeholder="Write a short pilot bio..."></textarea>
+    </div>
+    <div class="profile-actions">
+      <button class="button" onclick="saveProfile()">Save Profile</button>
+      <div class="profile-note">Your first name is used for the greeting on the main site.</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+</body>
+</html>

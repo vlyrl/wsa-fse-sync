@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Western Skies Air — Admin Login</title>
+<title>Western Skies Air — Sign In</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
 
 
@@ -206,15 +206,16 @@ body {
 
 <div class="login-container">
   <div class="login-title">WESTERN SKIES AIR</div>
-  <div class="login-subtitle">Admin Access</div>
+  <div class="login-subtitle">Account Access</div>
 
   <form class="login-form" onsubmit="event.preventDefault(); login();">
     <input type="email" id="email" class="login-input" placeholder="Email" required>
     <input type="password" id="password" class="login-input" placeholder="Password" required>
-    <button type="submit" class="login-button" id="login-btn">Login →</button>
+    <button type="submit" class="login-button" id="login-btn">Sign In →</button>
   </form>
 
-  <a href="western-skies-air-live_1.html" class="back-link">← Back to Public Site</a>
+  <a href="register.html" class="back-link">New user? Register an account</a>
+  <a href="western-skies-air-live_1.html" class="back-link" style="display:block; margin-top:12px;">← Back to Public Site</a>
 </div>
 
 <div class="toast" id="toast"></div>

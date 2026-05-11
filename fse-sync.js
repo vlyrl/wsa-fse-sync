@@ -56,7 +56,8 @@ const FSE_CONFIG = {
   baseUrl: 'https://server.fseconomy.net',
   username: process.env.FSE_USERNAME,
   password: process.env.FSE_PASSWORD,
-  airline: 'WSA'
+  airline: 'WSA',
+  groupId: '109630'
 };
 
 let sessionCookies = '';
@@ -90,6 +91,65 @@ async function loginToFSE() {
   } catch (error) {
     console.error('❌ Login failed:', error.message);
     return false;
+  }
+}
+
+async function fetchJobs() {
+  try {
+    if (!axios) initFirebase();
+    console.log('📡 Fetching group assignments...');
+
+    const response = await axios.get(`${FSE_CONFIG.baseUrl}/groupassignments.jsp?groupid=${FSE_CONFIG.groupId}`, {
+      headers: {
+        'Cookie': sessionCookies,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      timeout: 10000
+    });
+
+    const $ = cheerio.load(response.data);
+    const jobs = [];
+
+    $('table').each((ti, table) => {
+      $(table).find('tr').each((ri, row) => {
+        const cols = $(row).find('td');
+        if (cols.length < 4) return;
+
+        const values = cols.map((i, el) => $(el).text().trim()).get().filter(Boolean);
+        if (!values.length) return;
+
+        const job = { raw: values, id: values[0] || `job-${ti}-${ri}` };
+        if (values.length >= 5) {
+          job.route = values[1];
+          job.aircraft = values[2];
+          job.pay = values[3];
+          job.status = values[4];
+          job.details = values.slice(5).join(' | ');
+        } else if (values.length === 4) {
+          job.route = values[1];
+          job.aircraft = values[2];
+          job.pay = values[3];
+        } else {
+          job.details = values.slice(1).join(' | ');
+        }
+        jobs.push(job);
+      });
+    });
+
+    console.log(`✅ Fetched ${jobs.length} jobs`);
+    if (db) {
+      const jobObject = jobs.reduce((acc, job, index) => {
+        acc[job.id || `job-${index}`] = job;
+        return acc;
+      }, {});
+      await db.ref('jobsAvailable').set(jobObject);
+      await db.ref('jobsLastSync').set(new Date().toISOString());
+    }
+
+    return jobs;
+  } catch (error) {
+    console.error('❌ Job fetch failed:', error.message);
+    return [];
   }
 }
 
@@ -141,6 +201,7 @@ async function fetchData() {
           });
         }
         await db.ref('lastSync').set(new Date().toISOString());
+        await fetchJobs();
         console.log('✅ Firebase updated');
       } catch (fbError) {
         console.warn('⚠️  Firebase update failed:', fbError.message);

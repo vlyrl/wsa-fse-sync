@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Western Skies Air — Register</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, createUserWithEmailAndPassword, updateProfile, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getDatabase, ref, set, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCGHP1zInIv94yKym_nzpFrBRz6dtYwlps",
+    authDomain: "wsair-f3c09.firebaseapp.com",
+    projectId: "wsair-f3c09",
+    storageBucket: "wsair-f3c09.firebasestorage.app",
+    messagingSenderId: "712143874991",
+    appId: "1:712143874991:web:3ca4c58de815c8cf421d5a",
+    measurementId: "G-MWH2HGV7HD"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getDatabase(app);
+
+  function showToast(msg, isError = false) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.background = isError ? '#c0392b' : 'var(--gold)';
+    t.style.color = '#000';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3800);
+  }
+
+  onAuthStateChanged(auth, user => {
+    if (user) {
+      window.location.href = 'western-skies-air-live_1.html';
+    }
+  });
+
+  window.registerAccount = async function() {
+    const firstName = document.getElementById('first-name').value.trim();
+    const lastName = document.getElementById('last-name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('confirm-password').value;
+
+    if (!email || !password || !firstName) {
+      showToast('Email, password, and first name are required.', true);
+      return;
+    }
+    if (password !== confirmPassword) {
+      showToast('Passwords do not match.', true);
+      return;
+    }
+
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      const displayName = [firstName, lastName].filter(Boolean).join(' ');
+      const userData = {
+        uid: user.uid,
+        firstName,
+        lastName,
+        email,
+        admin: false,
+        createdAt: Date.now()
+      };
+      const publicData = {
+        uid: user.uid,
+        firstName,
+        lastName,
+        location: '',
+        bio: '',
+        createdAt: Date.now()
+      };
+      await set(ref(db, `users/${user.uid}`), userData);
+      await set(ref(db, `usersPublic/${user.uid}`), publicData);
+      try {
+        await runTransaction(ref(db, 'pilotCount'), current => {
+          return (current || 0) + 1;
+        });
+      } catch (pilotCountError) {
+        console.warn('Pilot count update failed:', pilotCountError);
+      }
+      if (displayName) {
+        await updateProfile(user, { displayName });
+      }
+      showToast('Registration successful! Redirecting...');
+      setTimeout(() => window.location.href = 'western-skies-air-live_1.html', 1400);
+    } catch (error) {
+      console.error('Registration failed:', error);
+      showToast('Registration failed: ' + (error.message || 'Unknown error'), true);
+    }
+  };
+</script>
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --gold: #c8860a; --gold-light: #f0a830;
+  --black: #0f0f0f; --surface: #141414; --surface2: #1c1c1c;
+  --border: rgba(255,255,255,0.07);
+  --text: #fff; --muted: #888; --dim: rgba(255,255,255,0.45);
+}
+html { scroll-behavior: smooth; }
+body { background: linear-gradient(160deg, #050d1a 0%, #0a1628 30%, #0d2040 60%, #3d1e04 100%); color: var(--text); font-family:'Barlow',sans-serif; min-height:100vh; display:flex; align-items:center; justify-content:center; }
+.register-container { background: var(--surface); border: 1px solid var(--border); padding: 48px; max-width: 440px; width: 90%; text-align:center; box-shadow: 0 16px 40px rgba(0,0,0,0.3); }
+.register-title { font-family:'Bebas Neue',sans-serif; font-size:36px; letter-spacing:0.06em; color:var(--gold); margin-bottom:8px; }
+.register-subtitle { font-family:'Barlow Condensed',sans-serif; font-size:12px; letter-spacing:0.3em; text-transform:uppercase; color:var(--muted); margin-bottom:32px; }
+.register-form { display:flex; flex-direction:column; gap:16px; }
+.register-input { width:100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-family:'Barlow Condensed',sans-serif; font-size:15px; letter-spacing:0.05em; padding:14px 16px; outline:none; }
+.register-input:focus { border-color: var(--gold); }
+.register-button { font-family:'Barlow Condensed',sans-serif; font-size:12px; letter-spacing:0.3em; text-transform:uppercase; background:var(--gold); color:#000; border:none; padding:16px 32px; cursor:pointer; font-weight:600; transition:background 0.2s; margin-top:8px; }
+.register-button:hover:not(:disabled) { background: var(--gold-light); }
+.register-action { font-family:'Barlow Condensed',sans-serif; font-size:11px; letter-spacing:0.25em; text-transform:uppercase; color:var(--dim); text-decoration:none; display:block; margin-top:24px; }
+.toast { position: fixed; bottom: 32px; right: 32px; background: var(--gold); color: #000; font-family: 'Barlow Condensed',sans-serif; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600; padding: 14px 24px; transform: translateY(100px); opacity: 0; transition: transform 0.4s, opacity 0.4s; z-index: 999; }
+.toast.show { transform: translateY(0); opacity: 1; }
+@media (max-width:768px) { .register-container { padding: 36px 24px; } }
+</style>
+</head>
+<body>
+
+<div class="register-container">
+  <div class="register-title">WESTERN SKIES AIR</div>
+  <div class="register-subtitle">Create an Account</div>
+  <form class="register-form" onsubmit="event.preventDefault(); registerAccount();">
+    <input id="first-name" class="register-input" type="text" placeholder="First Name" required>
+    <input id="last-name" class="register-input" type="text" placeholder="Last Name">
+    <input id="email" class="register-input" type="email" placeholder="Email" required>
+    <input id="password" class="register-input" type="password" placeholder="Password" required>
+    <input id="confirm-password" class="register-input" type="password" placeholder="Confirm Password" required>
+    <button class="register-button" type="submit">Register →</button>
+  </form>
+  <a href="login.html" class="register-action">Already have an account? Sign In</a>
+  <a href="western-skies-air-live_1.html" class="register-action">← Back to Public Site</a>
+</div>
+
+<div class="toast" id="toast"></div>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Western Skies Air — Staff</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCGHP1zInIv94yKym_nzpFrBRz6dtYwlps",
+    authDomain: "wsair-f3c09.firebaseapp.com",
+    projectId: "wsair-f3c09",
+    storageBucket: "wsair-f3c09.firebasestorage.app",
+    messagingSenderId: "712143874991",
+    appId: "1:712143874991:web:3ca4c58de815c8cf421d5a",
+    measurementId: "G-MWH2HGV7HD"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+
+  window.signOutAndRedirect = async function() {
+    try {
+      await signOut(auth);
+      window.location.href = 'western-skies-air-live_1.html';
+    } catch (error) {
+      console.error('Sign out failed:', error);
+    }
+  };
+
+  onAuthStateChanged(auth, user => {
+    const signOutBtn = document.getElementById('signout-btn');
+    if (signOutBtn) {
+      signOutBtn.style.display = user ? 'inline-block' : 'none';
+    }
+  });
+</script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root { --gold:#c8860a; --bg:#050d1a; --surface:#141414; --surface2:#1c1c1c; --border:rgba(255,255,255,0.07); --text:#fff; --muted:#888; }
+html { scroll-behavior: smooth; }
+body { min-height:100vh; background:linear-gradient(160deg,#050d1a 0%,#0a1628 30%,#0d2040 60%,#3d1e04 100%); color:var(--text); font-family:'Barlow',sans-serif; }
+nav { position:fixed; top:0; left:0; right:0; z-index:100; display:flex; align-items:center; justify-content:space-between; padding:0 32px; height:64px; background:rgba(10,10,10,0.92); border-bottom:1px solid var(--border); backdrop-filter:blur(12px); }
+.nav-logo { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:.12em; color:var(--text); text-decoration:none; }
+.nav-logo span { color:var(--gold); }
+.nav-actions { display:flex; gap:12px; align-items:center; }
+.nav-cta { font-family:'Barlow Condensed',sans-serif; font-size:11px; letter-spacing:0.25em; text-transform:uppercase; color:var(--gold); border:1px solid var(--gold); padding:8px 20px; text-decoration:none; transition:background .2s,color .2s; }
+.nav-cta:hover { background:var(--gold); color:#000; }
+.main { max-width:960px; margin:120px auto 80px; padding:0 24px; }
+.hero-card { background:var(--surface); border:1px solid var(--border); padding:42px 40px; border-radius:24px; box-shadow:0 20px 60px rgba(0,0,0,.3); }
+.hero-title { font-family:'Bebas Neue',sans-serif; font-size:clamp(40px,6vw,72px); line-height:1; margin-bottom:14px; }
+.hero-sub { font-family:'Barlow Condensed',sans-serif; font-size:12px; letter-spacing:.3em; text-transform:uppercase; color:var(--gold); margin-bottom:24px; }
+.contact-grid { display:grid; grid-template-columns:1fr; gap:18px; }
+.contact-card { background:var(--surface2); border:1px solid var(--border); padding:26px 28px; border-radius:18px; }
+.contact-card h2 { font-family:'Bebas Neue',sans-serif; font-size:24px; margin-bottom:10px; }
+.contact-card p { font-family:'Barlow',sans-serif; font-size:15px; color:var(--text); line-height:1.7; }
+.contact-strong { color:var(--gold); }
+@media (max-width:768px) { .main { margin-top:100px; } .hero-card { padding:28px; } }
+</style>
+</head>
+<body>
+<nav>
+  <a class="nav-logo" href="western-skies-air-live_1.html">WESTERN <span>SKIES</span> AIR</a>
+  <div class="nav-actions">
+    <a class="nav-cta" href="western-skies-air-live_1.html">Back to Site</a>
+    <a class="nav-cta" href="profile.html">Profile</a>
+    <a id="signout-btn" class="nav-cta" href="#" onclick="signOutAndRedirect(); return false;" style="display:none;">Sign Out</a>
+  </div>
+</nav>
+<div class="main">
+  <div class="hero-card">
+    <div class="hero-sub">Staff Directory</div>
+    <div class="hero-title">Weston Koenig</div>
+    <div class="contact-grid">
+      <div class="contact-card">
+        <h2>Chief Pilot & Director of Operations</h2>
+        <p><span class="contact-strong">Base:</span> San Angelo Regional (KSJT)</p>
+        <p><span class="contact-strong">Email:</span> sashootingwk@gmail.com</p>
+        <p><span class="contact-strong">Affiliations:</span> Texas & Southern Plains Charter · FSEconomy</p>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
