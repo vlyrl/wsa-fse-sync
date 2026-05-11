@@ -98,7 +98,10 @@ async function fetchData() {
     if (!axios) initFirebase();
     console.log('📡 Fetching aircraft data...');
 
-    const response = await axios.get(`${FSE_CONFIG.baseUrl}/myacft.asp`, {
+    const response = await axios.get(`${FSE_CONFIG.baseUrl}/aircraft`, {
+      params: {
+        airline: FSE_CONFIG.airline
+      },
       headers: {
         'Cookie': sessionCookies,
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -109,14 +112,16 @@ async function fetchData() {
     const $ = cheerio.load(response.data);
     const aircraft = [];
 
-    $('table tr').slice(1).each((index, row) => {
+    // Assuming the aircraft are in a table, find the table with aircraft
+    $('table tr').each((index, row) => {
       const cols = $(row).find('td');
-      if (cols.length >= 2) {
+      if (cols.length >= 3) {
         const registration = $(cols[0]).text().trim();
-        if (registration) {
+        const location = $(cols[2]).text().trim() || 'Unknown';
+        if (registration && registration.match(/^[A-Z0-9]+$/)) {  // Basic check for registration
           aircraft.push({
             registration,
-            location: $(cols[2]).text().trim() || 'Unknown',
+            location,
             status: 'available'
           });
         }
