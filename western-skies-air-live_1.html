@@ -36,44 +36,46 @@
   };
 
   // ── Live fleet listener ─────────────────────────────────────
-  onValue(ref(db, 'fleet'), snap => {
-    const fleet = snap.exists() ? snap.val() : {};
-    const cards = document.querySelectorAll('.fleet-card');
-    cards.forEach(card => {
-      const reg = card.getAttribute('data-reg');
-      const ac = fleet[reg];
-      if (!ac) {
-        card.style.display = 'none';
-        return;
-      }
+  document.addEventListener('DOMContentLoaded', () => {
+    onValue(ref(db, 'fleet'), snap => {
+      const fleet = snap.exists() ? snap.val() : {};
+      const cards = document.querySelectorAll('.fleet-card');
+      cards.forEach(card => {
+        const reg = card.getAttribute('data-reg');
+        const ac = fleet[reg];
+        if (!ac) {
+          card.style.display = 'none';
+          return;
+        }
 
-      card.style.display = 'block';
-      const dot    = card.querySelector('.status-dot');
-      const label  = card.querySelector('.status-label');
-      const locEl  = card.querySelector('.status-location');
-      const meta   = fleetDefinitions[reg] || {};
-      const typeEl = card.querySelector('.fleet-type');
-      const paxEl  = card.querySelector('.fleet-specs .spec-val:nth-child(2)');
-      const rangeEl= card.querySelector('.fleet-specs .spec-val:nth-child(4)');
-      const cruiseEl= card.querySelector('.fleet-specs .spec-val:nth-child(6)');
+        card.style.display = 'block';
+        const dot     = card.querySelector('.status-dot');
+        const label   = card.querySelector('.status-label');
+        const locEl   = card.querySelector('.status-location');
+        const meta    = fleetDefinitions[reg] || {};
+        const typeEl  = card.querySelector('.fleet-type');
+        const paxEl   = card.querySelector('.fleet-specs .spec-val:nth-child(2)');
+        const rangeEl = card.querySelector('.fleet-specs .spec-val:nth-child(4)');
+        const cruiseEl= card.querySelector('.fleet-specs .spec-val:nth-child(6)');
 
-      if (typeEl && meta.type) typeEl.textContent = meta.type;
-      if (paxEl && meta.pax) paxEl.textContent = `${meta.pax} passengers`;
-      if (rangeEl && meta.range) rangeEl.textContent = meta.range;
-      if (cruiseEl && meta.cruise) cruiseEl.textContent = meta.cruise;
+        if (typeEl && meta.type) typeEl.textContent = meta.type;
+        if (paxEl && meta.pax) paxEl.textContent = `${meta.pax} passengers`;
+        if (rangeEl && meta.range) rangeEl.textContent = meta.range;
+        if (cruiseEl && meta.cruise) cruiseEl.textContent = meta.cruise;
 
-      if (ac.status === 'available') {
-        dot.className = 'status-dot';
-        dot.style.cssText = 'background:#4caf50;box-shadow:0 0 6px #4caf50';
-        label.textContent = 'Available for Dispatch';
-        label.style.color = '#4caf50';
-      } else {
-        dot.className = 'status-dot idle';
-        dot.style.cssText = 'background:#f0a830;box-shadow:0 0 6px #f0a830';
-        label.textContent = `In Transit — ${ac.location}`;
-        label.style.color = '#f0a830';
-      }
-      if (locEl) locEl.textContent = ac.location || '—';
+        if (ac.status === 'available') {
+          dot.className = 'status-dot';
+          dot.style.cssText = 'background:#4caf50;box-shadow:0 0 6px #4caf50';
+          label.textContent = 'Available for Dispatch';
+          label.style.color = '#4caf50';
+        } else {
+          dot.className = 'status-dot idle';
+          dot.style.cssText = 'background:#f0a830;box-shadow:0 0 6px #f0a830';
+          label.textContent = `In Transit — ${ac.location}`;
+          label.style.color = '#f0a830';
+        }
+        if (locEl) locEl.textContent = ac.location || '—';
+      });
     });
   });
 
@@ -303,7 +305,7 @@ nav { position:fixed; top:0; left:0; right:0; z-index:100; background:rgba(10,10
 
 /* FLEET */
 .fleet-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:2px; margin-top:56px; }
-.fleet-card { background:var(--surface); border:1px solid var(--border); padding:36px 32px; position:relative; overflow:hidden; transition:border-color 0.3s; }
+.fleet-card { display:none; background:var(--surface); border:1px solid var(--border); padding:36px 32px; position:relative; overflow:hidden; transition:border-color 0.3s; }
 .fleet-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,var(--gold),transparent); opacity:0; transition:opacity 0.3s; }
 .fleet-card:hover { border-color:rgba(200,134,10,0.3); }
 .fleet-card:hover::before { opacity:1; }
