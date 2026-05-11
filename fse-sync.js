@@ -98,10 +98,7 @@ async function fetchData() {
     if (!axios) initFirebase();
     console.log('📡 Fetching aircraft data...');
 
-    const response = await axios.get(`${FSE_CONFIG.baseUrl}/aircraft`, {
-      params: {
-        airline: FSE_CONFIG.airline
-      },
+    const response = await axios.get(`${FSE_CONFIG.baseUrl}/aircraft.jsp`, {
       headers: {
         'Cookie': sessionCookies,
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
