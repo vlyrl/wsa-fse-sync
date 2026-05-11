@@ -2,6 +2,20 @@ require('dotenv').config();
 const admin = require('firebase-admin');
 const axios = require('axios');
 const cheerio = require('cheerio');
+const fs = require('fs');
+
+// Validate required files and environment variables
+if (!fs.existsSync('./serviceAccountKey.json')) {
+  console.error('❌ ERROR: serviceAccountKey.json not found!');
+  console.error('Please download your Firebase service account key and save it as serviceAccountKey.json');
+  process.exit(1);
+}
+
+if (!process.env.FSE_USERNAME || !process.env.FSE_PASSWORD) {
+  console.error('❌ ERROR: FSE_USERNAME and FSE_PASSWORD environment variables not set!');
+  console.error('Please create a .env file with your FSEconomy credentials');
+  process.exit(1);
+}
 
 // Initialize Firebase Admin
 const serviceAccount = require('./serviceAccountKey.json');
@@ -16,7 +30,7 @@ const db = admin.database();
 // FSEconomy configuration
 const FSE_CONFIG = {
   baseUrl: 'https://server.fseconomy.net',
-  // You'll need to add your FSEconomy credentials
+  // Get credentials from environment variables
   username: process.env.FSE_USERNAME,
   password: process.env.FSE_PASSWORD,
   airline: 'WSA' // Your airline code
