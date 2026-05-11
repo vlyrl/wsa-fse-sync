@@ -198,4 +198,22 @@ app.listen(PORT, () => {
   console.log(`🏥 GET  ${PORT}/health - Health check\n`);
 });
 
-module.exports = { loginToFSE, fetchData };
+async function syncFSEData() {
+  initFirebase();
+  console.log('\n🔄 Manual sync at', new Date().toLocaleTimeString());
+
+  const loginOk = await loginToFSE();
+  if (!loginOk) {
+    throw new Error('FSEconomy login failed');
+  }
+
+  const aircraft = await fetchData();
+
+  return {
+    success: true,
+    aircraftSynced: aircraft.length,
+    timestamp: new Date().toISOString()
+  };
+}
+
+module.exports = { loginToFSE, fetchData, syncFSEData };
