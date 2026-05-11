@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Western Skies Air — Admin Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
+
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+  const firebaseConfig = {
+     apiKey: "AIzaSyCGHP1zInIv94yKym_nzpFrBRz6dtYwlps",
+  authDomain: "wsair-f3c09.firebaseapp.com",
+  projectId: "wsair-f3c09",
+  storageBucket: "wsair-f3c09.firebasestorage.app",
+  messagingSenderId: "712143874991",
+  appId: "1:712143874991:web:3ca4c58de815c8cf421d5a",
+  measurementId: "G-MWH2HGV7HD"
+};
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+
+  // Check if already logged in
+  onAuthStateChanged(auth, user => {
+    if (user) {
+      // Already logged in, redirect to main page
+      window.location.href = 'western-skies-air-live_1.html';
+    }
+  });
+
+  window.login = async function() {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      showToast('Login successful! Redirecting...');
+      setTimeout(() => {
+        window.location.href = 'western-skies-air-live_1.html';
+      }, 1500);
+    } catch (error) {
+      showToast('Login failed: ' + error.message, true);
+    }
+  };
+
+  function showToast(msg, isError = false) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.background = isError ? '#c0392b' : '#4caf50';
+    t.style.color = '#fff';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3800);
+  }
+</script>
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --gold: #c8860a; --gold-light: #f0a830;
+  --night: #0d2040; --blue: #1a3a6b;
+  --black: #0f0f0f; --surface: #141414; --surface2: #1c1c1c;
+  --border: rgba(255,255,255,0.07);
+  --text: #fff; --muted: #888; --dim: rgba(255,255,255,0.45);
+}
+html { scroll-behavior: smooth; }
+body {
+  background: var(--black);
+  color: var(--text);
+  font-family: 'Barlow', sans-serif;
+  font-weight: 300;
+  line-height: 1.6;
+  overflow-x: hidden;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, #050d1a 0%, #0a1628 30%, #0d2040 60%, #3d1e04 100%);
+}
+
+.login-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 48px;
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+.login-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 36px;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+  margin-bottom: 8px;
+}
+
+.login-subtitle {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 32px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.05em;
+  padding: 14px 16px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.login-input:focus {
+  border-color: var(--gold);
+}
+
+.login-button {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  background: var(--gold);
+  color: #000;
+  border: none;
+  padding: 16px 32px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s;
+  margin-top: 8px;
+}
+
+.login-button:hover:not(:disabled) {
+  background: var(--gold-light);
+}
+
+.login-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.back-link {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-decoration: none;
+  margin-top: 24px;
+  display: inline-block;
+  transition: color 0.2s;
+}
+
+.back-link:hover {
+  color: var(--gold);
+}
+
+/* TOAST */
+.toast {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  background: var(--gold);
+  color: #000;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 14px 24px;
+  transform: translateY(100px);
+  opacity: 0;
+  transition: transform 0.4s, opacity 0.4s;
+  z-index: 999;
+}
+
+.toast.show {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+@media (max-width: 768px) {
+  .login-container {
+    padding: 32px 24px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="login-container">
+  <div class="login-title">WESTERN SKIES AIR</div>
+  <div class="login-subtitle">Admin Access</div>
+
+  <form class="login-form" onsubmit="event.preventDefault(); login();">
+    <input type="email" id="email" class="login-input" placeholder="Email" required>
+    <input type="password" id="password" class="login-input" placeholder="Password" required>
+    <button type="submit" class="login-button" id="login-btn">Login →</button>
+  </form>
+
+  <a href="western-skies-air-live_1.html" class="back-link">← Back to Public Site</a>
+</div>
+
+<div class="toast" id="toast"></div>
+
+</body>
+</html>
