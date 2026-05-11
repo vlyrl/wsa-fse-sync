@@ -28,52 +28,52 @@
   const db  = getDatabase(app);
   const auth = getAuth(app);
 
-  // ── Seed default data if database is empty ──────────────────
-  const seedFleet = {
-    "N441WS":  { reg:"N441WS", type:"Cessna 208B Grand Caravan", base:"KABI", status:"available", location:"KABI", pax:9,  range:"1,070 nm", cruise:"175 kts" },
-    "N350WS":  { reg:"N350WS", type:"Beechcraft King Air 350",   base:"KDAL", status:"transit",   location:"KSAT", pax:11, range:"1,806 nm", cruise:"312 kts" },
-    "N4CJ1WS": { reg:"N4CJ1WS",type:"Citation CJ4",              base:"KDFW", status:"available", location:"KDFW", pax:10, range:"2,165 nm", cruise:"451 kts" }
+  // ── Fleet definitions used for card metadata only ───────────
+  const fleetDefinitions = {
+    "N441WS": { type:"Cessna 208B Grand Caravan", pax:9,  range:"1,070 nm", cruise:"175 kts" },
+    "N350WS": { type:"Beechcraft King Air 350", pax:11, range:"1,806 nm", cruise:"312 kts" },
+    "N4CJ1WS": { type:"Citation CJ4", pax:10, range:"2,165 nm", cruise:"451 kts" }
   };
-  const seedStats = { hours: 847, flights: 312, revenue: "2.4M", pilots: 12 };
-  const seedPireps = [
-    { date:"2025-05-08", dep:"KDAL", arr:"KHOU", aircraft:"N4CJ1WS", pilot:"Capt. R. Hensley", blockTime:0.9,  remarks:"" },
-    { date:"2025-05-07", dep:"KABI", arr:"KSAT", aircraft:"N441WS",  pilot:"FO D. Marsh",      blockTime:1.6,  remarks:"" },
-    { date:"2025-05-06", dep:"KDFW", arr:"KELP", aircraft:"N350WS",  pilot:"Capt. T. Vega",    blockTime:2.8,  remarks:"Multi-stop via KABQ" },
-    { date:"2025-05-05", dep:"KOKC", arr:"KAMA", aircraft:"N441WS",  pilot:"FO L. Brandt",     blockTime:1.1,  remarks:"" },
-    { date:"2025-05-03", dep:"KSAT", arr:"KDAL", aircraft:"N350WS",  pilot:"Capt. R. Hensley", blockTime:1.3,  remarks:"" }
-  ];
-
-  // Only seed if no data exists yet
-  onValue(ref(db, 'fleet'), snap => {
-    if (!snap.exists()) {
-      set(ref(db, 'fleet'),  seedFleet);
-      set(ref(db, 'stats'),  seedStats);
-      seedPireps.forEach(p => push(ref(db, 'pireps'), p));
-    }
-  }, { onlyOnce: true });
 
   // ── Live fleet listener ─────────────────────────────────────
   onValue(ref(db, 'fleet'), snap => {
-    if (!snap.exists()) return;
-    const fleet = snap.val();
-    Object.values(fleet).forEach(ac => {
-      const card = document.querySelector(`[data-reg="${ac.reg}"]`);
-      if (!card) return;
+    const fleet = snap.exists() ? snap.val() : {};
+    const cards = document.querySelectorAll('.fleet-card');
+    cards.forEach(card => {
+      const reg = card.getAttribute('data-reg');
+      const ac = fleet[reg];
+      if (!ac) {
+        card.style.display = 'none';
+        return;
+      }
+
+      card.style.display = 'block';
       const dot    = card.querySelector('.status-dot');
       const label  = card.querySelector('.status-label');
       const locEl  = card.querySelector('.status-location');
+      const meta   = fleetDefinitions[reg] || {};
+      const typeEl = card.querySelector('.fleet-type');
+      const paxEl  = card.querySelector('.fleet-specs .spec-val:nth-child(2)');
+      const rangeEl= card.querySelector('.fleet-specs .spec-val:nth-child(4)');
+      const cruiseEl= card.querySelector('.fleet-specs .spec-val:nth-child(6)');
+
+      if (typeEl && meta.type) typeEl.textContent = meta.type;
+      if (paxEl && meta.pax) paxEl.textContent = `${meta.pax} passengers`;
+      if (rangeEl && meta.range) rangeEl.textContent = meta.range;
+      if (cruiseEl && meta.cruise) cruiseEl.textContent = meta.cruise;
+
       if (ac.status === 'available') {
-        dot.className   = 'status-dot';
+        dot.className = 'status-dot';
         dot.style.cssText = 'background:#4caf50;box-shadow:0 0 6px #4caf50';
         label.textContent = 'Available for Dispatch';
         label.style.color = '#4caf50';
       } else {
-        dot.className   = 'status-dot idle';
+        dot.className = 'status-dot idle';
         dot.style.cssText = 'background:#f0a830;box-shadow:0 0 6px #f0a830';
         label.textContent = `In Transit — ${ac.location}`;
         label.style.color = '#f0a830';
       }
-      if (locEl) locEl.textContent = ac.location;
+      if (locEl) locEl.textContent = ac.location || '—';
     });
   });
 
