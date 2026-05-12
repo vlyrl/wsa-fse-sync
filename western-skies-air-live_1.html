@@ -185,16 +185,14 @@
     statusEl.textContent = 'Fetching data from FSEconomy...';
 
     try {
-      // Call FSEconomy sync API endpoint
-      const response = await fetch('https://your-railway-app.railway.app/sync', {
+      // Call FSEconomy sync API endpoint on the local sync server
+      const response = await fetch('http://localhost:3000/sync', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          // Add authentication headers if needed
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          airline: 'WSA',
-          // Add any required parameters
+          airline: 'WSA'
         })
       });
 

@@ -67,21 +67,22 @@ async function loginToFSE() {
     if (!axios) initFirebase();
     console.log('🔐 Logging into FSEconomy...');
 
-    const response = await axios.post(`${FSE_CONFIG.baseUrl}/userctl`, {
-      'user': FSE_CONFIG.username,
-      'password': FSE_CONFIG.password,
-      'event': 'signin'
-    }, {
+    const payload = new URLSearchParams();
+    payload.append('user', FSE_CONFIG.username);
+    payload.append('password', FSE_CONFIG.password);
+    payload.append('event', 'signin');
+
+    const response = await axios.post(`${FSE_CONFIG.baseUrl}/userctl`, payload.toString(), {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       },
       maxRedirects: 0,
-      validateStatus: () => true
+      validateStatus: status => status >= 200 && status < 400
     });
 
     const cookies = response.headers['set-cookie'];
-    if (cookies) {
+    if (cookies && cookies.length > 0) {
       sessionCookies = cookies.map(cookie => cookie.split(';')[0]).join('; ');
       console.log('✅ FSEconomy login successful');
       return true;
@@ -102,7 +103,9 @@ async function fetchJobs() {
     const response = await axios.get(`${FSE_CONFIG.baseUrl}/groupassignments.jsp?groupid=${FSE_CONFIG.groupId}`, {
       headers: {
         'Cookie': sessionCookies,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Referer': `${FSE_CONFIG.baseUrl}/home.jsp`
       },
       timeout: 10000
     });
@@ -111,27 +114,48 @@ async function fetchJobs() {
     const jobs = [];
 
     $('table').each((ti, table) => {
+      const headers = $(table).find('th').map((i, th) => $(th).text().trim().toLowerCase()).get();
+      const isJobTable = headers.some(h => h.includes('pay')) && headers.some(h => h.includes('from')) && headers.some(h => h.includes('dest'));
+      if (!isJobTable) return;
+
       $(table).find('tr').each((ri, row) => {
         const cols = $(row).find('td');
-        if (cols.length < 4) return;
+        if (cols.length < 3) return;
 
-        const values = cols.map((i, el) => $(el).text().trim()).get().filter(Boolean);
-        if (!values.length) return;
+        const values = cols.map((i, el) => $(el).text().replace(/\s+/g, ' ').trim()).get();
+        const nonEmpty = values.filter(Boolean);
+        if (!nonEmpty.length) return;
 
-        const job = { raw: values, id: values[0] || `job-${ti}-${ri}` };
-        if (values.length >= 5) {
+        const idInput = $(row).find('input[type="checkbox"]').attr('value');
+        const job = {
+          raw: values,
+          id: idInput || `job-${ti}-${ri}`,
+          route: '',
+          aircraft: '',
+          pay: '',
+          status: '',
+          details: ''
+        };
+
+        // Find the first money value, and detect route/aircraft/status cells.
+        values.forEach((value, index) => {
+          if (!job.pay && value.startsWith('$')) job.pay = value;
+          if (!job.status && /^(open|locked|assigned|cancelled|expired|pending)$/i.test(value)) job.status = value;
+          if (!job.route && /\b[A-Z0-9]{3,4}\b\s*→\s*\b[A-Z0-9]{3,4}\b/.test(value)) job.route = value;
+        });
+
+        if (!job.route && values.length >= 5) {
           job.route = values[1];
-          job.aircraft = values[2];
-          job.pay = values[3];
-          job.status = values[4];
-          job.details = values.slice(5).join(' | ');
-        } else if (values.length === 4) {
-          job.route = values[1];
-          job.aircraft = values[2];
-          job.pay = values[3];
-        } else {
-          job.details = values.slice(1).join(' | ');
         }
+        if (!job.aircraft && values.length >= 4) {
+          job.aircraft = values[2];
+        }
+        if (!job.details) {
+          job.details = values.slice(3).filter(v => v && v !== job.pay && v !== job.status && v !== job.route).join(' | ');
+        }
+
+        // Skip header rows or rows that clearly are not assignments.
+        if (!job.pay && !job.route && !job.aircraft) return;
         jobs.push(job);
       });
     });
@@ -161,7 +185,9 @@ async function fetchData() {
     const response = await axios.get(`${FSE_CONFIG.baseUrl}/aircraft.jsp`, {
       headers: {
         'Cookie': sessionCookies,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Referer': `${FSE_CONFIG.baseUrl}/home.jsp`
       },
       timeout: 10000
     });
