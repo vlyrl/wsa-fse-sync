@@ -28,7 +28,7 @@
     },
     "pilotCount": {
       ".read": true,
-      ".write": "auth != null"
+      ".write": false
     },
     "jobsAvailable": {
       ".read": true,

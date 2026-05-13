@@ -1,7 +1,7 @@
 require('dotenv').config();
 const fs = require('fs');
 
-// Polyfill ReadableStream for older Node runtimes
+// Polyfill globals for Node.js 18 compatibility
 if (typeof global.ReadableStream === 'undefined') {
   try {
     const { ReadableStream, WritableStream, TransformStream } = require('stream/web');
@@ -13,40 +13,53 @@ if (typeof global.ReadableStream === 'undefined') {
     console.warn('⚠️  stream/web polyfill unavailable:', err.message);
   }
 }
+if (typeof global.File === 'undefined') {
+  try {
+    const { File } = require('buffer');
+    global.File = File;
+    console.log('✅ File polyfill loaded');
+  } catch (err) {
+    console.warn('⚠️  File polyfill unavailable:', err.message);
+  }
+}
 
 const express = require('express');
 const { Resend } = require('resend');
-const resend = new Resend('re_YeM4S8Ai_BXVDS3ZKnwsXfsJpYUVFWfKQ');
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Validate environment variables first
-if (!process.env.FSE_USERNAME || !process.env.FSE_PASSWORD) {
-  console.error('❌ ERROR: FSE_USERNAME and FSE_PASSWORD environment variables not set!');
+if (!process.env.FSE_USERNAME || !process.env.FSE_PASSWORD || !process.env.RESEND_API_KEY || !process.env.SYNC_SECRET) {
+  console.error('❌ ERROR: FSE_USERNAME, FSE_PASSWORD, RESEND_API_KEY, and SYNC_SECRET environment variables must be set!');
   process.exit(1);
 }
 
-let admin, db, axios, cheerio;
+const axios = require('axios');
+const cheerio = require('cheerio');
+let admin, db;
 
 function initFirebase() {
   if (db) return;
   try {
     admin = require('firebase-admin');
-    axios = require('axios');
-    cheerio = require('cheerio');
 
-    const keyPath = './serviceAccountKey.json';
-    console.log('🔍 Looking for Firebase key at: ' + keyPath);
-
-    if (!fs.existsSync(keyPath)) {
-      console.error('❌ File not found: ' + keyPath + ' (cwd: ' + process.cwd() + ')');
-      throw new Error('serviceAccountKey.json not found at ' + keyPath);
+    let serviceAccount;
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      console.log('✅ Firebase credentials loaded from environment variable');
+    } else {
+      const keyPath = './serviceAccountKey.json';
+      console.log('🔍 Looking for Firebase key at: ' + keyPath);
+      if (!fs.existsSync(keyPath)) {
+        console.error('❌ File not found: ' + keyPath + ' — set FIREBASE_SERVICE_ACCOUNT env var on Railway');
+        throw new Error('serviceAccountKey.json not found and FIREBASE_SERVICE_ACCOUNT not set');
+      }
+      serviceAccount = require(keyPath);
     }
-
-    const serviceAccount = require(keyPath);
 
     if (!admin.apps.length) {
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
-        databaseURL: 'https://wsair-f3c09-default-rtdb.firebaseio.com/'
+        databaseURL: 'https://wsair-f3c09-default-rtdb.firebaseio.com'
       });
     }
     db = admin.database();
@@ -70,7 +83,7 @@ let sessionCookies = '';
 async function loginToFSE() {
   let browser;
   try {
-    if (!axios) initFirebase();
+    if (!db) initFirebase();
     const puppeteer = require('puppeteer');
     console.log('🔐 Launching browser for FSEconomy login...');
 
@@ -126,7 +139,7 @@ async function loginToFSE() {
 // FETCH JOBS from groupassignments.jsp
 async function fetchJobs() {
   try {
-    if (!axios) initFirebase();
+    if (!db) initFirebase();
     console.log('📡 Fetching group assignments...');
 
     const response = await axios.get(
@@ -232,74 +245,49 @@ async function fetchJobs() {
   }
 }
 
-// FETCH AIRCRAFT from aircraft.jsp?id=<groupId>
+// FETCH AIRCRAFT using Puppeteer (page uses JS-rendered DataTables)
 async function fetchData() {
+  let browser;
   try {
-    if (!axios) initFirebase();
-    console.log('📡 Fetching aircraft data...');
+    if (!db) initFirebase();
+    console.log('📡 Fetching aircraft data (Puppeteer)...');
 
-    const response = await axios.get(
-      FSE_CONFIG.baseUrl + '/aircraft.jsp?id=' + FSE_CONFIG.groupId,
-      {
-        headers: {
-          'Cookie': sessionCookies,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Referer': FSE_CONFIG.baseUrl + '/home.jsp'
-        },
-        timeout: 15000,
-        validateStatus: function() { return true; }
-      }
-    );
+    const puppeteer = require('puppeteer');
+    browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
 
-    console.log('   Response: ' + response.status + ', Size: ' + response.data.length + ' bytes');
+    // Restore session by setting cookies
+    const cookiePairs = sessionCookies.split('; ').map(function(pair) {
+      const idx = pair.indexOf('=');
+      return { name: pair.slice(0, idx), value: pair.slice(idx + 1), domain: 'server.fseconomy.net' };
+    });
+    await page.setCookie(...cookiePairs);
 
-    if (response.data.length < 200) {
-      console.warn('⚠️  Response too small — likely a redirect');
-      return [];
-    }
+    await page.goto(FSE_CONFIG.baseUrl + '/aircraft.jsp?id=' + FSE_CONFIG.groupId, { waitUntil: 'networkidle2', timeout: 30000 });
 
-    if (response.data.includes('Log in') && !response.data.includes('Log out')) {
-      console.warn('⚠️  Got login page — session expired');
-      return [];
-    }
+    // Wait for DataTable to render
+    await new Promise(r => setTimeout(r, 2000));
 
-    const $ = cheerio.load(response.data);
+    const html = await page.content();
+    await browser.close();
+    browser = null;
+
+    const $ = cheerio.load(html);
     const aircraft = [];
 
-    console.log('📋 Parsing HTML — ' + $('table').length + ' table(s) found');
-
-    $('table').each(function(tableIndex, table) {
-      const rows = $(table).find('tr');
-      console.log('   Table ' + tableIndex + ': ' + rows.length + ' rows');
-
-      rows.each(function(rowIndex, row) {
-        const cols = $(row).find('td');
-        if (cols.length < 2) return;
-
-        const cellTexts = cols.map(function(i, el) { return $(el).text().trim(); }).get();
-        const firstCell = cellTexts[0];
-
-        if (firstCell && /^[A-Z][A-Z0-9\-]*$/.test(firstCell) && firstCell.length >= 3 && firstCell.length <= 8) {
-          const registration = firstCell;
-          const type = cellTexts[1] || 'Unknown';
-          const location = cellTexts[2] || cellTexts[1] || 'Unknown';
-          console.log('   ✈️  Found: ' + registration + ' (' + type + ') at ' + location);
-          aircraft.push({ registration: registration, type: type, location: location, status: 'available' });
-        }
-      });
+    $('table tr').each(function(rowIndex, row) {
+      const cols = $(row).find('td');
+      if (cols.length < 2) return;
+      const cellTexts = cols.map(function(i, el) { return $(el).text().trim(); }).get();
+      const firstCell = cellTexts[0];
+      if (firstCell && /^[A-Z][A-Z0-9\-]*$/.test(firstCell) && firstCell.length >= 3 && firstCell.length <= 10) {
+        const type     = cellTexts[1] || 'Unknown';
+        const location = cellTexts[2] || 'Unknown';
+        console.log('   ✈️  Found: ' + firstCell + ' (' + type + ') at ' + location);
+        aircraft.push({ registration: firstCell, type: type, location: location, status: 'available' });
+      }
     });
-
-    if (aircraft.length === 0) {
-      console.log('⚠️  No aircraft matched. Dumping table samples:');
-      $('table').each(function(ti, table) {
-        const sample = $(table).find('tr').slice(0, 2).map(function(ri, row) {
-          const cells = $(row).find('td').map(function(ci, el) { return $(el).text().trim().substring(0, 20); }).get();
-          return '  [' + cells.join(' | ') + ']';
-        }).get();
-        console.log('Table ' + ti + ':\n' + sample.join('\n'));
-      });
-    }
 
     console.log('✅ Fetched ' + aircraft.length + ' aircraft');
 
@@ -320,9 +308,41 @@ async function fetchData() {
 
     return aircraft;
   } catch (error) {
+    if (browser) try { await browser.close(); } catch(e) {}
     console.error('❌ Data fetch failed:', error.message);
     return [];
   }
+}
+
+function buildWelcomeEmail(firstName) {
+  const name = firstName || 'Pilot';
+  return `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0f0f0f;color:#ffffff;padding:40px;border-radius:8px;">
+      <div style="border-bottom:2px solid #c8860a;padding-bottom:20px;margin-bottom:30px;">
+        <h1 style="font-size:28px;margin:0;letter-spacing:2px;">WESTERN <span style="color:#c8860a;">SKIES</span> AIR</h1>
+        <p style="color:#888;font-size:12px;letter-spacing:3px;text-transform:uppercase;margin:6px 0 0;">Virtual Charter Airline</p>
+      </div>
+      <h2 style="color:#c8860a;font-size:20px;">Welcome aboard, ${name}!</h2>
+      <p style="color:#cccccc;line-height:1.7;">We're glad to have you on the team at Western Skies Air. To get started flying with us you'll need an FSEconomy account if you don't have one already — it's free and takes about 5 minutes to set up.</p>
+      <div style="background:#1c1c1c;border:1px solid #333;border-left:3px solid #c8860a;padding:20px;margin:24px 0;border-radius:4px;">
+        <p style="margin:0 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c8860a;">Step 1 — Create your FSEconomy account</p>
+        <a href="https://www.fseconomy.net/" style="color:#ffffff;font-size:16px;font-weight:bold;">https://www.fseconomy.net/</a>
+        <p style="margin:10px 0 0;color:#888;font-size:13px;">Sign up for a free account at FSEconomy World.</p>
+      </div>
+      <div style="background:#1c1c1c;border:1px solid #333;border-left:3px solid #c8860a;padding:20px;margin:24px 0;border-radius:4px;">
+        <p style="margin:0 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c8860a;">Step 2 — Contact Chief Pilot</p>
+        <p style="margin:0;color:#cccccc;font-size:14px;">Once your FSEconomy account is set up, email Chief Pilot Weston Koenig at <a href="mailto:sashootingwk@gmail.com" style="color:#c8860a;">sashootingwk@gmail.com</a> and he'll get you added to the group so you can access our aircraft and assignments.</p>
+      </div>
+      <div style="background:#1c1c1c;border:1px solid #333;border-left:3px solid #c8860a;padding:20px;margin:24px 0;border-radius:4px;">
+        <p style="margin:0 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c8860a;">Step 3 — Check the crew portal</p>
+        <p style="margin:0;color:#cccccc;font-size:14px;">Visit the website to see available charters, the fleet status, and the pilot roster. Everything updates live from FSEconomy.</p>
+      </div>
+      <p style="color:#cccccc;line-height:1.7;margin-top:30px;">Blue skies,<br><strong style="color:#ffffff;">Weston Koenig</strong><br><span style="color:#888;font-size:13px;">Chief Pilot &amp; Director of Operations · Western Skies Air</span></p>
+      <div style="border-top:1px solid #333;margin-top:30px;padding-top:20px;">
+        <p style="color:#555;font-size:11px;margin:0;">You received this email because you registered at Western Skies Air. Questions? Reply to sashootingwk@gmail.com</p>
+      </div>
+    </div>
+  `;
 }
 
 // EXPRESS SERVER
@@ -332,54 +352,37 @@ app.use(express.json());
 app.use(function(req, res, next) {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
+
+function requireSecret(req, res, next) {
+  const auth = req.headers['authorization'] || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (token !== process.env.SYNC_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+}
 
 app.get('/health', function(req, res) {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 
-app.post('/send-welcome', async function(req, res) {
+app.post('/send-welcome', requireSecret, async function(req, res) {
   try {
     const { email, firstName } = req.body;
     if (!email) return res.status(400).json({ error: 'email is required' });
 
-    const name = firstName || 'Pilot';
     console.log('📧 Manual welcome email to ' + email + '...');
 
     await resend.emails.send({
       from: 'onboarding@resend.dev',
       to: email,
       subject: 'Welcome to Western Skies Air — Next Steps',
-      html: `
-        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0f0f0f;color:#ffffff;padding:40px;border-radius:8px;">
-          <div style="border-bottom:2px solid #c8860a;padding-bottom:20px;margin-bottom:30px;">
-            <h1 style="font-size:28px;margin:0;letter-spacing:2px;">WESTERN <span style="color:#c8860a;">SKIES</span> AIR</h1>
-            <p style="color:#888;font-size:12px;letter-spacing:3px;text-transform:uppercase;margin:6px 0 0;">Virtual Charter Airline</p>
-          </div>
-          <h2 style="color:#c8860a;font-size:20px;">Welcome aboard, ${name}!</h2>
-          <p style="color:#cccccc;line-height:1.7;">We're glad to have you on the team at Western Skies Air. To get started flying with us you'll need an FSEconomy account if you don't have one already — it's free and takes about 5 minutes to set up.</p>
-          <div style="background:#1c1c1c;border:1px solid #333;border-left:3px solid #c8860a;padding:20px;margin:24px 0;border-radius:4px;">
-            <p style="margin:0 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c8860a;">Step 1 — Create your FSEconomy account</p>
-            <a href="https://www.fseconomy.net/" style="color:#ffffff;font-size:16px;font-weight:bold;">https://www.fseconomy.net/</a>
-            <p style="margin:10px 0 0;color:#888;font-size:13px;">Sign up for a free account at FSEconomy World.</p>
-          </div>
-          <div style="background:#1c1c1c;border:1px solid #333;border-left:3px solid #c8860a;padding:20px;margin:24px 0;border-radius:4px;">
-            <p style="margin:0 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c8860a;">Step 2 — Contact Chief Pilot</p>
-            <p style="margin:0;color:#cccccc;font-size:14px;">Once your FSEconomy account is set up, email Chief Pilot Weston Koenig at <a href="mailto:sashootingwk@gmail.com" style="color:#c8860a;">sashootingwk@gmail.com</a> and he'll get you added to the group so you can access our aircraft and assignments.</p>
-          </div>
-          <div style="background:#1c1c1c;border:1px solid #333;border-left:3px solid #c8860a;padding:20px;margin:24px 0;border-radius:4px;">
-            <p style="margin:0 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c8860a;">Step 3 — Check the crew portal</p>
-            <p style="margin:0;color:#cccccc;font-size:14px;">Visit the website to see available charters, the fleet status, and the pilot roster. Everything updates live from FSEconomy.</p>
-          </div>
-          <p style="color:#cccccc;line-height:1.7;margin-top:30px;">Blue skies,<br><strong style="color:#ffffff;">Weston Koenig</strong><br><span style="color:#888;font-size:13px;">Chief Pilot &amp; Director of Operations · Western Skies Air</span></p>
-          <div style="border-top:1px solid #333;margin-top:30px;padding-top:20px;">
-            <p style="color:#555;font-size:11px;margin:0;">Questions? Reply to sashootingwk@gmail.com</p>
-          </div>
-        </div>
-      `
+      html: buildWelcomeEmail(firstName)
     });
 
     console.log('✅ Welcome email sent to ' + email);
@@ -391,11 +394,12 @@ app.post('/send-welcome', async function(req, res) {
 });
 
 
-app.post('/send-custom', async function(req, res) {
+app.post('/send-custom', requireSecret, async function(req, res) {
   try {
     const { email, firstName, subject, body } = req.body;
     if (!email || !subject || !body) return res.status(400).json({ error: 'email, subject and body are required' });
     const name = firstName || 'Pilot';
+    const safeBody = String(body).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     console.log('📧 Custom email to ' + email + ' — ' + subject);
     await resend.emails.send({
       from: 'onboarding@resend.dev',
@@ -408,7 +412,7 @@ app.post('/send-custom', async function(req, res) {
             <p style="color:#888;font-size:12px;letter-spacing:3px;text-transform:uppercase;margin:6px 0 0;">Virtual Charter Airline</p>
           </div>
           <p style="color:#cccccc;line-height:1.7;">Hi ${name},</p>
-          <div style="color:#cccccc;line-height:1.8;white-space:pre-wrap;">${body}</div>
+          <div style="color:#cccccc;line-height:1.8;white-space:pre-wrap;">${safeBody}</div>
           <p style="color:#cccccc;line-height:1.7;margin-top:30px;">Blue skies,<br><strong style="color:#ffffff;">Weston Koenig</strong><br><span style="color:#888;font-size:13px;">Chief Pilot &amp; Director of Operations · Western Skies Air</span></p>
           <div style="border-top:1px solid #333;margin-top:30px;padding-top:20px;">
             <p style="color:#555;font-size:11px;margin:0;">Questions? Reply to sashootingwk@gmail.com</p>
@@ -424,13 +428,20 @@ app.post('/send-custom', async function(req, res) {
   }
 });
 
-app.post('/sync', async function(req, res) {
+let syncInProgress = false;
+
+app.post('/sync', requireSecret, async function(req, res) {
+  if (syncInProgress) {
+    return res.status(429).json({ error: 'Sync already in progress' });
+  }
+  syncInProgress = true;
   try {
     initFirebase();
     console.log('\n🔄 Sync request at', new Date().toLocaleTimeString());
 
     const loginOk = await loginToFSE();
     if (!loginOk) {
+      syncInProgress = false;
       return res.status(401).json({ error: 'FSEconomy login failed' });
     }
 
@@ -443,6 +454,8 @@ app.post('/sync', async function(req, res) {
   } catch (error) {
     console.error('❌ Sync error:', error.message);
     res.status(500).json({ error: error.message });
+  } finally {
+    syncInProgress = false;
   }
 });
 
@@ -454,10 +467,10 @@ app.listen(PORT, function() {
 });
 
 
-// FETCH FLIGHT LOG from log.jsp and calculate total hours + flight count
+// FETCH FLIGHT LOG from log.jsp — extracts individual flights and saves to pireps
 async function fetchLog() {
   try {
-    if (!axios) initFirebase();
+    if (!db) initFirebase();
     console.log('📡 Fetching flight log...');
 
     const response = await axios.get(
@@ -483,48 +496,123 @@ async function fetchLog() {
 
     const $ = cheerio.load(response.data);
     let totalMinutes = 0;
-    let flightCount = 0;
+    const pireps = [];
+    let totalEarnings = 0;
 
-    // Find the log table — look for one with a time/duration column
     $('table').each(function(ti, table) {
-      const headerText = $(table).find('th').map(function(i,th){ return $(th).text(); }).get().join(' ');
-      if (!headerText.includes('From') && !headerText.includes('Dep')) return;
+      const headers = $(table).find('th').map(function(i, th) {
+        return $(th).text().trim().toLowerCase();
+      }).get();
+
+      const hasFrom = headers.some(h => h.includes('from') || h.includes('dep'));
+      if (!hasFrom) return;
+
+      // Map header names to column indices
+      function col(keywords) {
+        const idx = headers.findIndex(h => keywords.some(k => h.includes(k)));
+        return idx >= 0 ? idx : -1;
+      }
+      const iDate     = col(['date']);
+      const iFrom     = col(['from', 'dep']);
+      const iTo       = col(['to', 'dest', 'arr']);
+      const iAircraft = col(['aircraft', 'reg', 'tail']);
+      const iPilot    = col(['pilot', 'name']);
+      const iTime     = col(['time', 'block', 'duration']);
+      const iEarnings = col(['earning', 'revenue', 'pay', 'income']);
+
+      console.log('   Log table headers: ' + headers.join(', '));
 
       $(table).find('tr').each(function(ri, row) {
-        if (ri === 0) return; // skip header
+        if (ri === 0) return;
         const cells = $(row).find('td');
         if (cells.length < 3) return;
 
-        // Look through all cells for a time value in h:mm or hh:mm format
-        cells.each(function(ci, cell) {
-          const text = $(cell).text().trim();
-          const timeMatch = text.match(/^(\d+):(\d{2})$/);
-          if (timeMatch) {
-            totalMinutes += parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2]);
-            flightCount++;
-          }
+        function cellText(idx) {
+          return idx >= 0 && cells.eq(idx).length ? cells.eq(idx).text().replace(/\s+/g, ' ').trim() : '';
+        }
+
+        // Find block time — prefer mapped column, else scan all cells
+        let blockMinutes = 0;
+        let timeStr = cellText(iTime);
+        let timeMatch = timeStr.match(/(\d+):(\d{2})/);
+        if (!timeMatch) {
+          cells.each(function(ci, cell) {
+            const t = $(cell).text().trim();
+            const m = t.match(/^(\d+):(\d{2})$/);
+            if (m && !timeMatch) { timeMatch = m; timeStr = t; }
+          });
+        }
+        if (timeMatch) {
+          blockMinutes = parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2]);
+          totalMinutes += blockMinutes;
+        }
+
+        const dep      = cellText(iFrom).toUpperCase() || '???';
+        const arr      = cellText(iTo).toUpperCase()   || '???';
+        const aircraft = cellText(iAircraft)            || 'Unknown';
+        const pilot    = cellText(iPilot)               || 'Unknown';
+        const date     = cellText(iDate)                || new Date().toISOString().slice(0, 10);
+
+        if (dep === '???' && arr === '???') return;
+
+        // Parse earnings for this flight
+        const earningsRaw = cellText(iEarnings).replace(/[$,]/g, '');
+        const earnings = parseFloat(earningsRaw) || 0;
+        totalEarnings += earnings;
+
+        pireps.push({
+          date,
+          dep,
+          arr,
+          aircraft,
+          pilot,
+          blockTime: parseFloat((blockMinutes / 60).toFixed(2)),
+          earnings: earnings
         });
       });
     });
 
-    // If no h:mm found, just count rows as flights
-    if (flightCount === 0) {
-      $('table').each(function(ti, table) {
-        const headerText = $(table).find('th').map(function(i,th){ return $(th).text(); }).get().join(' ');
-        if (!headerText.includes('From') && !headerText.includes('Dep')) return;
-        flightCount = $(table).find('tr').length - 1; // subtract header row
-      });
-    }
-
-    const hoursFlown = (totalMinutes / 60).toFixed(1);
+    const flightCount = pireps.length;
+    const hoursFlown  = (totalMinutes / 60).toFixed(1);
     console.log('✅ Flight log: ' + flightCount + ' flights, ' + hoursFlown + ' hours');
+
+    console.log('✅ Total earnings: $' + totalEarnings.toFixed(2));
 
     if (db) {
       await db.ref('stats').update({
         flights: flightCount,
-        hoursFlown: parseFloat(hoursFlown)
+        hoursFlown: parseFloat(hoursFlown),
+        revenue: totalEarnings.toFixed(2)
       });
-      console.log('✅ Stats saved to Firebase');
+
+      if (pireps.length) {
+        const pirepsObj = {};
+        pireps.forEach(function(p, i) {
+          pirepsObj['flight-' + i] = p;
+        });
+        await db.ref('pireps').set(pirepsObj);
+        console.log('✅ ' + pireps.length + ' flights saved to Firebase');
+      }
+
+      // Auto-update each pilot's totalHours by matching fseUsername
+      try {
+        const usersSnap = await db.ref('usersPublic').once('value');
+        if (usersSnap.exists()) {
+          const users = usersSnap.val();
+          for (const uid of Object.keys(users)) {
+            const fseUsername = (users[uid].fseUsername || '').trim().toLowerCase();
+            if (!fseUsername) continue;
+            const pilotHours = pireps
+              .filter(function(p) { return p.pilot.trim().toLowerCase() === fseUsername; })
+              .reduce(function(sum, p) { return sum + (p.blockTime || 0); }, 0);
+            await db.ref('usersPublic/' + uid).update({ totalHours: parseFloat(pilotHours.toFixed(1)) });
+            await db.ref('users/' + uid).update({ totalHours: parseFloat(pilotHours.toFixed(1)) });
+            console.log('✅ Updated hours for ' + fseUsername + ': ' + pilotHours.toFixed(1) + ' hrs');
+          }
+        }
+      } catch (e) {
+        console.error('❌ Pilot hours update failed:', e.message);
+      }
     }
 
     return { flights: flightCount, hoursFlown: parseFloat(hoursFlown) };
@@ -582,46 +670,7 @@ async function checkNewPilots() {
           from: 'onboarding@resend.dev',
           to: email,
           subject: 'Welcome to Western Skies Air — Next Steps',
-          html: `
-            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0f0f0f;color:#ffffff;padding:40px;border-radius:8px;">
-              <div style="border-bottom:2px solid #c8860a;padding-bottom:20px;margin-bottom:30px;">
-                <h1 style="font-size:28px;margin:0;letter-spacing:2px;">WESTERN <span style="color:#c8860a;">SKIES</span> AIR</h1>
-                <p style="color:#888;font-size:12px;letter-spacing:3px;text-transform:uppercase;margin:6px 0 0;">Virtual Charter Airline</p>
-              </div>
-
-              <h2 style="color:#c8860a;font-size:20px;">Welcome aboard, ${firstName}!</h2>
-
-              <p style="color:#cccccc;line-height:1.7;">
-                We're glad to have you on the team at Western Skies Air. To get started flying with us you'll need an FSEconomy account if you don't have one already — it's free and takes about 5 minutes to set up.
-              </p>
-
-              <div style="background:#1c1c1c;border:1px solid #333;border-left:3px solid #c8860a;padding:20px;margin:24px 0;border-radius:4px;">
-                <p style="margin:0 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c8860a;">Step 1 — Create your FSEconomy account</p>
-                <a href="https://www.fseconomy.net/" style="color:#ffffff;font-size:16px;font-weight:bold;">https://www.fseconomy.net/</a>
-                <p style="margin:10px 0 0;color:#888;font-size:13px;">Sign up for a free account at FSEconomy World.</p>
-              </div>
-
-              <div style="background:#1c1c1c;border:1px solid #333;border-left:3px solid #c8860a;padding:20px;margin:24px 0;border-radius:4px;">
-                <p style="margin:0 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c8860a;">Step 2 — Contact Chief Pilot</p>
-                <p style="margin:0;color:#cccccc;font-size:14px;">Once your FSEconomy account is set up, email Chief Pilot Weston Koenig at <a href="mailto:sashootingwk@gmail.com" style="color:#c8860a;">sashootingwk@gmail.com</a> and he'll get you added to the group so you can access our aircraft and assignments.</p>
-              </div>
-
-              <div style="background:#1c1c1c;border:1px solid #333;border-left:3px solid #c8860a;padding:20px;margin:24px 0;border-radius:4px;">
-                <p style="margin:0 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c8860a;">Step 3 — Check the crew portal</p>
-                <p style="margin:0;color:#cccccc;font-size:14px;">Visit the website to see available charters, the fleet status, and the pilot roster. Everything updates live from FSEconomy.</p>
-              </div>
-
-              <p style="color:#cccccc;line-height:1.7;margin-top:30px;">
-                Blue skies,<br>
-                <strong style="color:#ffffff;">Weston Koenig</strong><br>
-                <span style="color:#888;font-size:13px;">Chief Pilot &amp; Director of Operations · Western Skies Air</span>
-              </p>
-
-              <div style="border-top:1px solid #333;margin-top:30px;padding-top:20px;">
-                <p style="color:#555;font-size:11px;margin:0;">You received this email because you registered at Western Skies Air. Questions? Reply to sashootingwk@gmail.com</p>
-              </div>
-            </div>
-          `
+          html: buildWelcomeEmail(firstName)
         });
         console.log('   ✅ Welcome email sent to ' + email);
       } catch (emailErr) {

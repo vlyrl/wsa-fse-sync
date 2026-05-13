@@ -8,17 +8,10 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getDatabase, ref, get, set, update, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getDatabase, ref, get, set, update, remove, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyCGHP1zInIv94yKym_nzpFrBRz6dtYwlps",
-    authDomain: "wsair-f3c09.firebaseapp.com",
-    projectId: "wsair-f3c09",
-    storageBucket: "wsair-f3c09.firebasestorage.app",
-    messagingSenderId: "712143874991",
-    appId: "1:712143874991:web:3ca4c58de815c8cf421d5a"
-  };
+  import { firebaseConfig } from './firebase-config.js';
 
   const app  = initializeApp(firebaseConfig);
   const db   = getDatabase(app);
@@ -63,18 +56,145 @@
     renderPilotTable(allPilots);
     populateEmailDropdown(allPilots);
     document.getElementById('pilot-count').textContent = allPilots.length;
+    await loadCertifications();
   }
+
+  // ── Certifications ──────────────────────────────────────────
+  let allCerts = {};
+
+  async function loadCertifications() {
+    const snap = await get(ref(db, 'certifications'));
+    allCerts = snap.exists() ? snap.val() : {};
+    renderCertList();
+  }
+
+  function renderCertList() {
+    const list = document.getElementById('cert-list');
+    if (!list) return;
+    const entries = Object.entries(allCerts);
+    if (!entries.length) {
+      list.innerHTML = '<div style="color:var(--muted);font-size:13px;font-family:\'Barlow Condensed\',sans-serif;letter-spacing:.1em;">No certifications yet. Create one below.</div>';
+      return;
+    }
+    list.innerHTML = entries.map(([id, cert]) => `
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);">
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:.05em;color:var(--text);">${cert.name}</div>
+          ${cert.description ? `<div style="font-family:'Barlow',sans-serif;font-size:12px;color:var(--muted);margin-top:2px;">${cert.description}</div>` : ''}
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          <button class="btn btn-gold" style="padding:6px 14px;font-size:10px;" onclick="openAssignModal('${id}')">Assign</button>
+          <button class="tbl-btn" onclick="deleteCert('${id}')">Delete</button>
+        </div>
+      </div>`).join('');
+  }
+
+  // ── Assign modal ─────────────────────────────────────────────
+  let assigningCertId = null;
+
+  window.openAssignModal = async function(certId) {
+    assigningCertId = certId;
+    const cert = allCerts[certId];
+    document.getElementById('assign-cert-name').textContent = cert.name;
+    const descEl = document.getElementById('assign-cert-desc');
+    if (cert.description) { descEl.textContent = cert.description; descEl.style.display = 'block'; }
+    else { descEl.style.display = 'none'; }
+
+    const certifiedUids = new Set();
+    for (const pilot of allPilots) {
+      const snap = await get(ref(db, `users/${pilot.uid}/certifications/${certId}`));
+      if (snap.exists()) certifiedUids.add(pilot.uid);
+    }
+
+    const notCertified = allPilots.filter(p => !certifiedUids.has(p.uid));
+    document.getElementById('assign-pilot-select').innerHTML =
+      '<option value="">— Select a pilot —</option>' +
+      notCertified.map(p => `<option value="${p.uid}">${p.firstName || ''} ${p.lastName || ''}</option>`).join('');
+
+    const certified = allPilots.filter(p => certifiedUids.has(p.uid));
+    document.getElementById('assign-certified-list').innerHTML = certified.length
+      ? certified.map(p => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;">${p.firstName || ''} ${p.lastName || ''}</div>
+            <button class="tbl-btn" onclick="revokeCertFromPilot('${p.uid}')">Revoke</button>
+          </div>`).join('')
+      : '<div style="color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;font-size:13px;letter-spacing:.1em;">No pilots certified yet.</div>';
+
+    document.getElementById('assign-modal').classList.add('open');
+  };
+
+  window.closeAssignModal = function() {
+    document.getElementById('assign-modal').classList.remove('open');
+    assigningCertId = null;
+  };
+
+  window.assignCertToPilot = async function() {
+    const uid = document.getElementById('assign-pilot-select').value;
+    if (!uid) { toast('Select a pilot first', true); return; }
+    if (!assigningCertId) return;
+    try {
+      await set(ref(db, `users/${uid}/certifications/${assigningCertId}`), { earnedAt: Date.now() });
+      await set(ref(db, `usersPublic/${uid}/certifications/${assigningCertId}`), { earnedAt: Date.now() });
+      toast('Certification assigned');
+      await openAssignModal(assigningCertId);
+    } catch (e) { toast('Failed: ' + e.message, true); }
+  };
+
+  window.revokeCertFromPilot = async function(uid) {
+    if (!assigningCertId) return;
+    if (!confirm('Revoke this certification from this pilot?')) return;
+    try {
+      await remove(ref(db, `users/${uid}/certifications/${assigningCertId}`));
+      await remove(ref(db, `usersPublic/${uid}/certifications/${assigningCertId}`));
+      toast('Certification revoked');
+      await openAssignModal(assigningCertId);
+    } catch (e) { toast('Failed: ' + e.message, true); }
+  };
+
+  window.createCert = async function() {
+    const name = document.getElementById('cert-name').value.trim();
+    const description = document.getElementById('cert-desc').value.trim();
+    if (!name) { toast('Enter a certification name', true); return; }
+    try {
+      const certId = 'cert_' + Date.now();
+      await set(ref(db, `certifications/${certId}`), { name, description, createdAt: Date.now() });
+      allCerts[certId] = { name, description, createdAt: Date.now() };
+      renderCertList();
+      document.getElementById('cert-name').value = '';
+      document.getElementById('cert-desc').value = '';
+      toast('Certification created');
+    } catch (e) {
+      toast('Failed: ' + e.message, true);
+    }
+  };
+
+  window.deleteCert = async function(certId) {
+    if (!confirm('Delete this certification? It will be removed from all pilots.')) return;
+    try {
+      await remove(ref(db, `certifications/${certId}`));
+      delete allCerts[certId];
+      renderCertList();
+      toast('Certification deleted');
+    } catch (e) {
+      toast('Failed: ' + e.message, true);
+    }
+  };
 
   function renderPilotTable(pilots) {
     const tbody = document.getElementById('pilot-tbody');
-    tbody.innerHTML = pilots.map(p => `
+    tbody.innerHTML = pilots.map(p => {
+      const rank = getRank(p.totalHours, p.chiefPilot);
+      return `
       <tr>
         <td>${p.firstName || ''} ${p.lastName || ''}</td>
         <td>${p.email || ''}</td>
         <td>${p.location || '—'}</td>
+        <td><span style="color:${rank.color};font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.2em;text-transform:uppercase;">${rank.title}</span></td>
+        <td>${Number(p.totalHours || 0).toFixed(1)} hrs</td>
         <td><span class="badge ${p.admin ? 'badge-admin' : 'badge-pilot'}">${p.admin ? 'Admin' : 'Pilot'}</span></td>
         <td><button class="tbl-btn" onclick="openEdit('${p.uid}')">Edit</button></td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   }
 
   function populateEmailDropdown(pilots) {
@@ -95,17 +215,42 @@
   // ── Edit pilot modal ─────────────────────────────────────────
   let editingUid = null;
 
+  function getRank(hours, chiefPilot) {
+    if (chiefPilot) return { title: 'Chief Pilot', color: '#c8860a' };
+    const h = Number(hours) || 0;
+    if (h >= 500)  return { title: 'Senior Captain',       color: '#e8c96a' };
+    if (h >= 250)  return { title: 'Captain',              color: '#4fc3f7' };
+    if (h >= 100)  return { title: 'Senior First Officer', color: '#81c784' };
+    if (h >= 25)   return { title: 'First Officer',        color: '#aaa' };
+    return           { title: 'Student Pilot',             color: '#666' };
+  }
+
   window.openEdit = async function(uid) {
     editingUid = uid;
     const snap = await get(ref(db, `users/${uid}`));
     const d = snap.val() || {};
-    document.getElementById('edit-first').value  = d.firstName  || '';
-    document.getElementById('edit-last').value   = d.lastName   || '';
-    document.getElementById('edit-email').value  = d.email      || '';
-    document.getElementById('edit-phone').value  = d.phone      || '';
-    document.getElementById('edit-loc').value    = d.location   || '';
-    document.getElementById('edit-bio').value    = d.bio        || '';
-    document.getElementById('edit-admin').checked = !!d.admin;
+    document.getElementById('edit-first').value    = d.firstName    || '';
+    document.getElementById('edit-last').value     = d.lastName     || '';
+    document.getElementById('edit-email').value    = d.email        || '';
+    document.getElementById('edit-phone').value    = d.phone        || '';
+    document.getElementById('edit-loc').value      = d.location     || '';
+    document.getElementById('edit-bio').value      = d.bio          || '';
+    document.getElementById('edit-hours').value       = d.totalHours  || 0;
+    document.getElementById('edit-admin').checked     = !!d.admin;
+    document.getElementById('edit-chief').checked     = !!d.chiefPilot;
+    const rank = getRank(d.totalHours, d.chiefPilot);
+    document.getElementById('edit-rank-display').textContent = rank.title;
+    document.getElementById('edit-rank-display').style.color = rank.color;
+    const certSnap = await get(ref(db, `users/${uid}/certifications`));
+    const pilotCerts = certSnap.exists() ? certSnap.val() : {};
+    const certEntries = Object.entries(allCerts);
+    document.getElementById('cert-checkboxes').innerHTML = certEntries.length
+      ? certEntries.map(([id, cert]) => `
+          <div class="checkbox-row">
+            <input type="checkbox" id="cert-cb-${id}" ${pilotCerts[id] ? 'checked' : ''}>
+            <label for="cert-cb-${id}">${cert.name}${cert.description ? ' — ' + cert.description : ''}</label>
+          </div>`).join('')
+      : '<div style="color:var(--muted);font-size:12px;font-family:\'Barlow Condensed\',sans-serif;letter-spacing:.1em;">No certifications available. Create some in the Certifications card first.</div>';
     document.getElementById('modal').classList.add('open');
   };
 
@@ -116,16 +261,33 @@
 
   window.saveEdit = async function() {
     if (!editingUid) return;
-    const firstName = document.getElementById('edit-first').value.trim();
-    const lastName  = document.getElementById('edit-last').value.trim();
-    const phone     = document.getElementById('edit-phone').value.trim();
-    const location  = document.getElementById('edit-loc').value.trim().toUpperCase();
-    const bio       = document.getElementById('edit-bio').value.trim();
-    const isAdmin   = document.getElementById('edit-admin').checked;
+    const firstName   = document.getElementById('edit-first').value.trim();
+    const lastName    = document.getElementById('edit-last').value.trim();
+    const phone       = document.getElementById('edit-phone').value.trim();
+    const location    = document.getElementById('edit-loc').value.trim().toUpperCase();
+    const bio         = document.getElementById('edit-bio').value.trim();
+    const isAdmin     = document.getElementById('edit-admin').checked;
+    const totalHours  = parseFloat(document.getElementById('edit-hours').value) || 0;
+    const chiefPilot  = document.getElementById('edit-chief').checked;
+    const rank        = getRank(totalHours, chiefPilot).title;
 
     try {
-      await update(ref(db, `users/${editingUid}`), { firstName, lastName, phone, location, bio, admin: isAdmin, updatedAt: Date.now() });
-      await update(ref(db, `usersPublic/${editingUid}`), { firstName, lastName, location, bio, updatedAt: Date.now() });
+      await update(ref(db, `users/${editingUid}`), { firstName, lastName, phone, location, bio, admin: isAdmin, chiefPilot, totalHours, rank, updatedAt: Date.now() });
+      await update(ref(db, `usersPublic/${editingUid}`), { firstName, lastName, location, bio, totalHours, rank, chiefPilot, updatedAt: Date.now() });
+      for (const certId of Object.keys(allCerts)) {
+        const cb = document.getElementById(`cert-cb-${certId}`);
+        if (!cb) continue;
+        if (cb.checked) {
+          const existing = await get(ref(db, `users/${editingUid}/certifications/${certId}`));
+          if (!existing.exists()) {
+            await set(ref(db, `users/${editingUid}/certifications/${certId}`), { earnedAt: Date.now() });
+            await set(ref(db, `usersPublic/${editingUid}/certifications/${certId}`), { earnedAt: Date.now() });
+          }
+        } else {
+          await remove(ref(db, `users/${editingUid}/certifications/${certId}`));
+          await remove(ref(db, `usersPublic/${editingUid}/certifications/${certId}`));
+        }
+      }
       toast('Profile saved successfully');
       closeModal();
       loadPilots();
@@ -140,6 +302,9 @@
     try {
       await remove(ref(db, `users/${editingUid}`));
       await remove(ref(db, `usersPublic/${editingUid}`));
+      const remaining = await get(ref(db, 'usersPublic'));
+      const newCount = remaining.exists() ? Object.keys(remaining.val() || {}).length : 0;
+      await set(ref(db, 'pilotCount'), newCount);
       toast('Pilot deleted');
       closeModal();
       loadPilots();
@@ -173,9 +338,9 @@
     btn.disabled = true; btn.textContent = 'Sending...';
 
     try {
-      const res = await fetch('http://localhost:3000/send-welcome', {
+      const res = await fetch('https://wsa-fse-sync-production.up.railway.app/send-welcome', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer wsa-7kM9pL2xN4qR8vJd3wT6fYcE' },
         body: JSON.stringify({ email, firstName })
       });
       const data = await res.json();
@@ -203,9 +368,9 @@
     btn.disabled = true; btn.textContent = 'Sending...';
 
     try {
-      const res = await fetch('http://localhost:3000/send-custom', {
+      const res = await fetch('https://wsa-fse-sync-production.up.railway.app/send-custom', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer wsa-7kM9pL2xN4qR8vJd3wT6fYcE' },
         body: JSON.stringify({ email, firstName, subject, body })
       });
       const data = await res.json();
@@ -421,7 +586,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 
       <div class="card-sub" style="margin-bottom:12px;">Sync Server</div>
       <p style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:14px;">
-        To trigger a data sync from FSEconomy, the sync server must be running locally on port 3000.
+        Triggers a live data sync from FSEconomy via the Railway sync server. Updates aircraft, jobs, flights, hours, and revenue.
       </p>
       <button class="btn btn-gold" onclick="triggerSync()">Trigger FSE Sync</button>
       <div id="sync-result" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);margin-top:10px;"></div>
@@ -445,6 +610,8 @@ tr:hover td { background: rgba(255,255,255,0.02); }
             <th>Name</th>
             <th>Email</th>
             <th>Home Base</th>
+            <th>Rank</th>
+            <th>Hours</th>
             <th>Role</th>
             <th>Actions</th>
           </tr>
@@ -456,6 +623,29 @@ tr:hover td { background: rgba(255,255,255,0.02); }
     </div>
   </div>
 
+</div>
+
+<!-- CERTIFICATIONS CARD -->
+<div style="max-width:1200px;margin:0 auto 24px;padding:0 32px;">
+  <div class="card">
+    <div class="card-title">Certifications</div>
+    <div class="card-sub">Create certification types — assign them to pilots via the Edit button</div>
+    <div id="cert-list" style="margin-bottom:20px;"></div>
+    <div class="divider"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;">
+      <div class="field" style="margin-bottom:0;">
+        <label>Certification Name</label>
+        <input type="text" id="cert-name" placeholder="e.g. Cessna 208B Type Rating">
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label>Description (optional)</label>
+        <input type="text" id="cert-desc" placeholder="e.g. Authorized to fly N441WS">
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn btn-gold" onclick="createCert()">Create Certification</button>
+    </div>
+  </div>
 </div>
 
 <!-- EDIT MODAL -->
@@ -489,15 +679,54 @@ tr:hover td { background: rgba(255,255,255,0.02); }
       <label>Bio</label>
       <textarea id="edit-bio" placeholder="Pilot bio..."></textarea>
     </div>
+    <div class="field">
+      <label>Total Flight Hours</label>
+      <input type="number" id="edit-hours" placeholder="0" min="0" step="0.1" oninput="const r=getRank(this.value);document.getElementById('edit-rank-display').textContent=r.title;document.getElementById('edit-rank-display').style.color=r.color;">
+      <div style="margin-top:6px;font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.2em;text-transform:uppercase;">Rank: <span id="edit-rank-display">Student Pilot</span></div>
+    </div>
     <div class="checkbox-row">
       <input type="checkbox" id="edit-admin">
       <label for="edit-admin">Admin privileges</label>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="edit-chief">
+      <label for="edit-chief">Chief Pilot (manually assigned)</label>
+    </div>
+    <div style="margin-top:16px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Certifications</div>
+      <div id="cert-checkboxes"></div>
     </div>
 
     <div class="btn-row">
       <button class="btn btn-gold" onclick="saveEdit()">Save Changes</button>
       <button class="btn btn-danger" onclick="deletePilot()">Delete Pilot</button>
       <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ASSIGN MODAL -->
+<div class="modal-overlay" id="assign-modal" onclick="if(event.target===this)closeAssignModal()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeAssignModal()">✕</button>
+    <div class="modal-title" id="assign-cert-name">Certification</div>
+    <div class="modal-sub" id="assign-cert-desc"></div>
+
+    <div style="margin-bottom:20px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Assign to Pilot</div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <select id="assign-pilot-select" style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:14px;padding:10px 14px;outline:none;">
+          <option value="">— Select a pilot —</option>
+        </select>
+        <button class="btn btn-gold" onclick="assignCertToPilot()">Assign</button>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div style="margin-top:16px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Currently Certified</div>
+      <div id="assign-certified-list"></div>
     </div>
   </div>
 </div>
@@ -512,7 +741,7 @@ async function triggerSync() {
   btn.textContent = 'Syncing...';
   result.textContent = '';
   try {
-    const res = await fetch('http://localhost:3000/sync', { method: 'POST' });
+    const res = await fetch('https://wsa-fse-sync-production.up.railway.app/sync', { method: 'POST', headers: { 'Authorization': 'Bearer wsa-7kM9pL2xN4qR8vJd3wT6fYcE' } });
     const data = await res.json();
     if (data.success) {
       result.textContent = '✅ Synced ' + data.aircraftSynced + ' aircraft · ' + new Date().toLocaleTimeString();

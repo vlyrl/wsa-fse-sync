@@ -13,15 +13,7 @@
   import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyCGHP1zInIv94yKym_nzpFrBRz6dtYwlps",
-  authDomain: "wsair-f3c09.firebaseapp.com",
-  projectId: "wsair-f3c09",
-  storageBucket: "wsair-f3c09.firebasestorage.app",
-  messagingSenderId: "712143874991",
-  appId: "1:712143874991:web:3ca4c58de815c8cf421d5a",
-  measurementId: "G-MWH2HGV7HD"
-}
+  import { firebaseConfig } from './firebase-config.js';
 
 
   const app = initializeApp(firebaseConfig);
@@ -106,16 +98,17 @@
     onValue(ref(db, 'stats'), snap => {
       if (!snap.exists()) return;
       const s = snap.val();
-      if (document.getElementById('stat-hours'))   document.getElementById('stat-hours').textContent   = s.hours;
-      if (document.getElementById('stat-flights')) document.getElementById('stat-flights').textContent = s.flights;
-      if (document.getElementById('stat-revenue')) document.getElementById('stat-revenue').textContent = '$' + s.revenue;
-      if (document.getElementById('badge-hours'))   document.getElementById('badge-hours').textContent   = s.hours;
-      if (document.getElementById('badge-flights')) document.getElementById('badge-flights').textContent = s.flights;
-      if (document.getElementById('badge-revenue')) document.getElementById('badge-revenue').textContent = '$' + s.revenue;
+      const hours = s.hoursFlown || s.hours || 0;
+      if (document.getElementById('stat-hours'))   document.getElementById('stat-hours').textContent   = hours;
+      if (document.getElementById('stat-flights')) document.getElementById('stat-flights').textContent = s.flights || 0;
+      if (document.getElementById('stat-revenue')) document.getElementById('stat-revenue').textContent = s.revenue ? '$' + Number(s.revenue).toLocaleString() : 'N/A';
+      if (document.getElementById('badge-hours'))   document.getElementById('badge-hours').textContent   = hours;
+      if (document.getElementById('badge-flights')) document.getElementById('badge-flights').textContent = s.flights || 0;
+      if (document.getElementById('badge-revenue')) document.getElementById('badge-revenue').textContent = s.revenue ? '$' + s.revenue : 'N/A';
     });
 
-    onValue(ref(db, 'pilotCount'), snap => {
-      const count = snap.exists() ? snap.val() : 0;
+    onValue(ref(db, 'usersPublic'), snap => {
+      const count = snap.exists() ? Object.keys(snap.val() || {}).length : 0;
       const pilotEl = document.getElementById('stat-pilots');
       const badgeEl = document.getElementById('badge-pilots');
       if (pilotEl) pilotEl.textContent = count;
@@ -172,13 +165,16 @@
 
   // ── Live PIREP log listener ─────────────────────────────────
   onValue(ref(db, 'pireps'), snap => {
-    if (!snap.exists()) return;
+    const tbody = document.getElementById('log-tbody');
+    if (!tbody) return;
+    if (!snap.exists()) {
+      tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:32px 0;">No flights logged yet.</td></tr>';
+      return;
+    }
     const rows = [];
     snap.forEach(child => rows.push({ key: child.key, ...child.val() }));
     rows.sort((a, b) => b.date.localeCompare(a.date));
 
-    const tbody = document.getElementById('log-tbody');
-    if (!tbody) return;
     tbody.innerHTML = '';
     rows.slice(0, 20).forEach(p => {
       const tr = document.createElement('tr');
@@ -206,10 +202,11 @@
 
     try {
       // Call FSEconomy sync API endpoint on the local sync server
-      const response = await fetch('http://localhost:3000/sync', {
+      const response = await fetch('https://wsa-fse-sync-production.up.railway.app/sync', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer wsa-7kM9pL2xN4qR8vJd3wT6fYcE'
         },
         body: JSON.stringify({
           airline: 'WSA'
