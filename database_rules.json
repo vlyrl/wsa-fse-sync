@@ -39,6 +39,10 @@
       ".read": true,
       ".write": "auth != null"
     },
+    "certifications": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid === 'SVhJh3T9nfZT46hmaViKKxPhkbp1' || root.child('users').child(auth.uid).child('admin').val() === true)"
+    },
     "_lastKnownPilotCount": {
       ".read": "auth != null",
       ".write": "auth != null"

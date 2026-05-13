@@ -7,6 +7,12 @@ node_modules/
 # Firebase service account key
 serviceAccountKey.json
 
+# Debug scripts
+debug-*.js
+
+# Stale database rules
+database.rules.json
+
 # Logs
 *.log
 npm-debug.log*
