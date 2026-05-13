@@ -1,7 +1,7 @@
 require('dotenv').config();
 const fs = require('fs');
 
-// Polyfill ReadableStream for older Node runtimes
+// Polyfill globals for Node.js 18 compatibility
 if (typeof global.ReadableStream === 'undefined') {
   try {
     const { ReadableStream, WritableStream, TransformStream } = require('stream/web');
@@ -11,6 +11,15 @@ if (typeof global.ReadableStream === 'undefined') {
     console.log('✅ stream/web polyfill loaded');
   } catch (err) {
     console.warn('⚠️  stream/web polyfill unavailable:', err.message);
+  }
+}
+if (typeof global.File === 'undefined') {
+  try {
+    const { File } = require('buffer');
+    global.File = File;
+    console.log('✅ File polyfill loaded');
+  } catch (err) {
+    console.warn('⚠️  File polyfill unavailable:', err.message);
   }
 }
 
