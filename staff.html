@@ -50,7 +50,14 @@ nav { position:fixed; top:0; left:0; right:0; z-index:100; display:flex; align-i
 .contact-card h2 { font-family:'Bebas Neue',sans-serif; font-size:24px; margin-bottom:10px; }
 .contact-card p { font-family:'Barlow',sans-serif; font-size:15px; color:var(--text); line-height:1.7; }
 .contact-strong { color:var(--gold); }
-@media (max-width:768px) { .main { margin-top:100px; } .hero-card { padding:28px; } }
+@media (max-width:768px) {
+  nav { padding: 0 16px; }
+  .nav-actions a:nth-child(2) { display: none; }
+  .nav-actions { gap: 8px; }
+  .nav-cta { padding: 7px 14px; font-size: 10px; }
+  .main { margin-top: 96px; padding: 0 16px; }
+  .hero-card { padding: 24px 20px; border-radius: 16px; }
+}
 </style>
 </head>
 <body>

@@ -110,7 +110,10 @@ body { background: linear-gradient(160deg, #050d1a 0%, #0a1628 30%, #0d2040 60%,
 .register-action { font-family:'Barlow Condensed',sans-serif; font-size:11px; letter-spacing:0.25em; text-transform:uppercase; color:var(--dim); text-decoration:none; display:block; margin-top:24px; }
 .toast { position: fixed; bottom: 32px; right: 32px; background: var(--gold); color: #000; font-family: 'Barlow Condensed',sans-serif; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600; padding: 14px 24px; transform: translateY(100px); opacity: 0; transition: transform 0.4s, opacity 0.4s; z-index: 999; }
 .toast.show { transform: translateY(0); opacity: 1; }
-@media (max-width:768px) { .register-container { padding: 36px 24px; } }
+@media (max-width:768px) {
+  .register-container { padding: 32px 20px; }
+  .toast { bottom: 20px; right: 20px; left: 20px; text-align: center; }
+}
 </style>
 </head>
 <body>

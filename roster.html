@@ -143,7 +143,16 @@ nav { position:fixed; top:0; left:0; right:0; z-index:100; background:rgba(10,10
 .roster-table tr:hover { background:rgba(255,255,255,0.04); }
 .toast { position:fixed; bottom:32px; right:32px; background:var(--gold); color:#000; font-family:'Barlow Condensed',sans-serif; font-size:12px; letter-spacing:0.2em; text-transform:uppercase; font-weight:600; padding:14px 24px; transform:translateY(100px); opacity:0; transition:transform 0.4s,opacity 0.4s; z-index:999; }
 .toast.show { transform:translateY(0); opacity:1; }
-@media (max-width:768px) { .container { margin-top:100px; } nav { padding:0 18px; } .roster-summary { flex-direction:column; align-items:flex-start; } }
+@media (max-width:768px) {
+  nav { padding: 0 16px; }
+  .nav-actions a:not(:first-child):not(:last-child) { display: none; }
+  .nav-actions { gap: 8px; }
+  .nav-cta { padding: 7px 14px; font-size: 10px; }
+  .container { margin-top: 96px; padding: 0 16px; }
+  .roster-card { padding: 20px 16px; }
+  .roster-summary { flex-direction: column; align-items: flex-start; }
+  .toast { bottom: 20px; right: 20px; left: 20px; text-align: center; }
+}
 </style>
 </head>
 <body>

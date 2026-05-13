@@ -420,6 +420,22 @@ nav { position: fixed; top: 0; left: 0; right: 0; z-index: 200; height: 60px; ba
 .admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
 @media (max-width: 900px) { .admin-grid { grid-template-columns: 1fr; } }
 
+@media (max-width: 768px) {
+  nav { padding: 0 16px; }
+  .nav-user { display: none; }
+  .nav-right { gap: 10px; }
+  .wrapper { padding: 80px 16px 60px; }
+  .page-header { margin-bottom: 28px; }
+  .stat-strip { gap: 12px; }
+  .stat-box { padding: 16px 18px; min-width: 0; flex: 1 1 calc(50% - 6px); }
+  .stat-box-num { font-size: 28px; }
+  .card { padding: 20px 16px; }
+  .table-section { padding: 20px 16px; }
+  .table-search { width: 100%; }
+  .table-header { flex-direction: column; align-items: stretch; }
+  .toast { bottom: 20px; right: 20px; left: 20px; text-align: center; }
+}
+
 /* CARDS */
 .card { background: var(--surface); border: 1px solid var(--border); padding: 28px; }
 .card-title { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 0.08em; margin-bottom: 6px; }
