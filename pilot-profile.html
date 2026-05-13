@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Western Skies Air — Pilot Profile</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { firebaseConfig } from './firebase-config.js';
+
+  const app  = initializeApp(firebaseConfig);
+  const db   = getDatabase(app);
+  const auth = getAuth(app);
+
+  function getRank(hours, chiefPilot) {
+    if (chiefPilot) return { title: 'Chief Pilot',          color: '#c8860a' };
+    const h = Number(hours) || 0;
+    if (h >= 500)  return { title: 'Senior Captain',       color: '#e8c96a' };
+    if (h >= 250)  return { title: 'Captain',              color: '#4fc3f7' };
+    if (h >= 100)  return { title: 'Senior First Officer', color: '#81c784' };
+    if (h >= 25)   return { title: 'First Officer',        color: '#aaa' };
+    return           { title: 'Student Pilot',             color: '#666' };
+  }
+
+  onAuthStateChanged(auth, user => {
+    const signoutBtn = document.getElementById('nav-signout-btn');
+    if (signoutBtn) signoutBtn.style.display = user ? 'inline-block' : 'none';
+  });
+
+  window.signOutAndRedirect = async function() {
+    await signOut(auth);
+    window.location.href = 'western-skies-air-live_1.html';
+  };
+
+  async function loadProfile() {
+    const params = new URLSearchParams(window.location.search);
+    const uid = params.get('uid');
+    if (!uid) { showError('No pilot specified.'); return; }
+
+    try {
+      const [publicSnap, certDefsSnap, pilotCertSnap, pirepsSnap] = await Promise.all([
+        get(ref(db, `usersPublic/${uid}`)),
+        get(ref(db, 'certifications')),
+        get(ref(db, `usersPublic/${uid}/certifications`)),
+        get(ref(db, 'pireps'))
+      ]);
+
+      if (!publicSnap.exists()) { showError('Pilot not found.'); return; }
+
+      const data      = publicSnap.val() || {};
+      const certDefs  = certDefsSnap.exists()  ? certDefsSnap.val()  : {};
+      const pilotCerts = pilotCertSnap.exists() ? pilotCertSnap.val() : {};
+
+      const name  = [data.firstName, data.lastName].filter(Boolean).join(' ') || 'Pilot';
+      const rank  = getRank(data.totalHours, data.chiefPilot);
+      const hours = Number(data.totalHours || 0).toFixed(1);
+
+      document.title = `${name} — Western Skies Air`;
+      document.getElementById('pilot-name').textContent  = name;
+      document.getElementById('pilot-rank').textContent  = rank.title;
+      document.getElementById('pilot-rank').style.color  = rank.color;
+      document.getElementById('pilot-hours').textContent = hours + ' hrs';
+
+      if (data.location) {
+        document.getElementById('pilot-base').textContent = data.location;
+        document.getElementById('base-row').style.display = 'flex';
+      }
+
+      if (data.bio) {
+        document.getElementById('pilot-bio').textContent = data.bio;
+        document.getElementById('bio-section').style.display = 'block';
+      }
+
+      const earnedIds = Object.keys(pilotCerts).filter(id => certDefs[id]);
+      const certEl = document.getElementById('pilot-certs');
+      if (earnedIds.length) {
+        certEl.innerHTML = earnedIds.map(id =>
+          `<div class="cert-badge">${certDefs[id].name}${certDefs[id].description ? '<span class="cert-desc"> — ' + certDefs[id].description + '</span>' : ''}</div>`
+        ).join('');
+      } else {
+        certEl.innerHTML = '<div style="color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;font-size:13px;letter-spacing:.1em;">No certifications yet.</div>';
+      }
+
+      // Flight history filtered by fseUsername
+      const fseUsername = (data.fseUsername || '').trim().toLowerCase();
+      const flightEl = document.getElementById('pilot-flights');
+      if (fseUsername && pirepsSnap.exists()) {
+        const allFlights = Object.values(pirepsSnap.val() || {});
+        const myFlights = allFlights
+          .filter(p => p.pilot && p.pilot.trim().toLowerCase() === fseUsername)
+          .sort((a, b) => b.date.localeCompare(a.date));
+        if (myFlights.length) {
+          flightEl.innerHTML = myFlights.map(p => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);font-family:'Barlow Condensed',sans-serif;font-size:13px;">
+              <div style="color:var(--muted);min-width:110px;">${p.date}</div>
+              <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:.05em;">${p.dep} → ${p.arr}</div>
+              <div style="color:var(--gold);">${p.aircraft}</div>
+              <div style="color:var(--muted);">${Number(p.blockTime).toFixed(1)} hrs</div>
+              ${p.earnings ? `<div style="color:#81c784;">$${Number(p.earnings).toLocaleString()}</div>` : ''}
+            </div>`).join('');
+        } else {
+          flightEl.innerHTML = '<div style="color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;font-size:13px;letter-spacing:.1em;">No flights logged yet.</div>';
+        }
+        document.getElementById('flights-card').style.display = 'block';
+      }
+
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('profile-content').style.display = 'block';
+
+    } catch (e) {
+      console.error(e);
+      showError('Could not load pilot profile.');
+    }
+  }
+
+  function showError(msg) {
+    document.getElementById('loading').style.display = 'none';
+    const err = document.getElementById('error-msg');
+    err.textContent = msg;
+    err.style.display = 'block';
+  }
+
+  window.addEventListener('DOMContentLoaded', loadProfile);
+</script>
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --gold: #c8860a; --gold-light: #f0a830;
+  --surface: #141414; --surface2: #1c1c1c;
+  --border: rgba(255,255,255,0.07);
+  --text: #fff; --muted: #888;
+}
+html { scroll-behavior: smooth; }
+body { background: linear-gradient(160deg, #050d1a 0%, #0a1628 30%, #0d2040 60%, #3d1e04 100%); color: var(--text); font-family: 'Barlow', sans-serif; min-height: 100vh; }
+nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(10,10,10,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; height: 64px; }
+.nav-logo { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 0.12em; color: var(--text); text-decoration: none; }
+.nav-logo span { color: var(--gold); }
+.nav-actions { display: flex; gap: 12px; align-items: center; }
+.nav-cta { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold); padding: 8px 20px; text-decoration: none; transition: background 0.2s, color 0.2s; }
+.nav-cta:hover { background: var(--gold); color: #000; }
+.container { max-width: 700px; margin: 120px auto 80px; padding: 0 24px; }
+.card { background: var(--surface); border: 1px solid var(--border); padding: 36px; border-radius: 16px; box-shadow: 0 16px 40px rgba(0,0,0,0.2); margin-bottom: 20px; }
+.eyebrow { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 0.4em; text-transform: uppercase; color: var(--gold); margin-bottom: 16px; }
+.pilot-name { font-family: 'Bebas Neue', sans-serif; font-size: clamp(40px, 6vw, 64px); line-height: 1; margin-bottom: 20px; }
+.stat-row { display: flex; gap: 32px; flex-wrap: wrap; padding: 20px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+.stat-item { display: flex; flex-direction: column; gap: 4px; }
+.stat-label { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 0.4em; text-transform: uppercase; color: var(--muted); }
+.stat-value { font-family: 'Bebas Neue', sans-serif; font-size: 28px; line-height: 1; }
+.base-row { display: none; gap: 10px; align-items: center; margin-bottom: 16px; font-family: 'Barlow Condensed', sans-serif; font-size: 14px; letter-spacing: 0.1em; color: var(--muted); }
+.bio-section { display: none; margin-top: 16px; font-size: 15px; color: var(--muted); line-height: 1.7; }
+.cert-badge { display: inline-block; background: rgba(200,134,10,0.12); border: 1px solid rgba(200,134,10,0.35); color: var(--gold); font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; padding: 6px 14px; margin: 4px; }
+.cert-desc { color: var(--muted); text-transform: none; letter-spacing: 0.05em; font-size: 11px; }
+.back-link { display: inline-flex; align-items: center; gap: 8px; font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--muted); text-decoration: none; margin-bottom: 24px; transition: color 0.2s; }
+.back-link:hover { color: var(--gold); }
+.toast { position: fixed; bottom: 32px; right: 32px; background: var(--gold); color: #000; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600; padding: 14px 24px; transform: translateY(100px); opacity: 0; transition: transform 0.4s, opacity 0.4s; z-index: 999; }
+.toast.show { transform: translateY(0); opacity: 1; }
+@media (max-width: 768px) { .container { margin-top: 100px; } nav { padding: 0 18px; } .card { padding: 28px; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="western-skies-air-live_1.html">WESTERN <span>SKIES</span> AIR</a>
+  <div class="nav-actions">
+    <a class="nav-cta" href="roster.html">← Roster</a>
+    <a id="nav-signout-btn" class="nav-cta" href="#" onclick="signOutAndRedirect(); return false;" style="display:none;">Sign Out</a>
+  </div>
+</nav>
+
+<div class="container">
+  <div id="loading" style="color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:.2em;text-transform:uppercase;">Loading pilot profile...</div>
+  <div id="error-msg" style="display:none;color:#f87171;font-family:'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:.2em;text-transform:uppercase;"></div>
+
+  <div id="profile-content" style="display:none;">
+    <a class="back-link" href="roster.html">← Back to Roster</a>
+
+    <div class="card">
+      <div class="eyebrow">Pilot Profile</div>
+      <div class="pilot-name" id="pilot-name">—</div>
+
+      <div class="stat-row">
+        <div class="stat-item">
+          <div class="stat-label">Rank</div>
+          <div class="stat-value" id="pilot-rank">—</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Total Hours</div>
+          <div class="stat-value" style="color:var(--gold);" id="pilot-hours">—</div>
+        </div>
+      </div>
+
+      <div class="base-row" id="base-row">
+        <span style="color:var(--gold);">✦</span>
+        <span>Home Base: <strong id="pilot-base"></strong></span>
+      </div>
+
+      <div class="bio-section" id="bio-section">
+        <div id="pilot-bio"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">Certifications</div>
+      <div id="pilot-certs"></div>
+    </div>
+
+    <div class="card" id="flights-card" style="display:none;">
+      <div class="eyebrow">Flight History</div>
+      <div id="pilot-flights"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+</body>
+</html>

@@ -26,6 +26,16 @@
     setTimeout(() => t.classList.remove('show'), 3800);
   }
 
+  function getRank(hours, chiefPilot) {
+    if (chiefPilot) return { title: 'Chief Pilot', color: '#c8860a' };
+    const h = Number(hours) || 0;
+    if (h >= 500)  return { title: 'Senior Captain',       color: '#e8c96a' };
+    if (h >= 250)  return { title: 'Captain',              color: '#4fc3f7' };
+    if (h >= 100)  return { title: 'Senior First Officer', color: '#81c784' };
+    if (h >= 25)   return { title: 'First Officer',        color: '#aaa' };
+    return           { title: 'Student Pilot',             color: '#666' };
+  }
+
   async function loadProfile(user) {
     document.getElementById('profile-email').textContent = user.email || '';
     try {
@@ -35,7 +45,28 @@
       document.getElementById('last-name').value = data.lastName || (user.displayName ? user.displayName.split(' ').slice(1).join(' ') : '');
       document.getElementById('phone').value = data.phone || '';
       document.getElementById('location').value = data.location || '';
+      document.getElementById('fse-username').value = data.fseUsername || '';
       document.getElementById('bio').value = data.bio || '';
+      const hours = data.totalHours || 0;
+      const rank = getRank(hours, data.chiefPilot);
+      document.getElementById('profile-rank').textContent = rank.title;
+      document.getElementById('profile-rank').style.color = rank.color;
+      document.getElementById('profile-hours').textContent = Number(hours).toFixed(1) + ' hrs';
+      const [certDefsSnap, pilotCertSnap] = await Promise.all([
+        get(ref(db, 'certifications')),
+        get(ref(db, `users/${user.uid}/certifications`))
+      ]);
+      const certDefs = certDefsSnap.exists() ? certDefsSnap.val() : {};
+      const pilotCerts = pilotCertSnap.exists() ? pilotCertSnap.val() : {};
+      const earnedCerts = Object.keys(pilotCerts).filter(id => certDefs[id]);
+      const certEl = document.getElementById('profile-certs');
+      if (earnedCerts.length) {
+        certEl.innerHTML = earnedCerts.map(id =>
+          `<div style="display:inline-block;background:rgba(200,134,10,0.12);border:1px solid rgba(200,134,10,0.35);color:var(--gold);font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.2em;text-transform:uppercase;padding:6px 14px;margin:4px;">${certDefs[id].name}</div>`
+        ).join('');
+      } else {
+        certEl.innerHTML = '<div style="color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;font-size:13px;letter-spacing:.1em;">No certifications earned yet.</div>';
+      }
     } catch (error) {
       console.error('Failed to load profile:', error);
       showToast('Could not load profile data', true);
@@ -57,17 +88,19 @@
       return;
     }
 
-    const firstName = document.getElementById('first-name').value.trim();
-    const lastName = document.getElementById('last-name').value.trim();
-    const phone = document.getElementById('phone').value.trim();
-    const location = document.getElementById('location').value.trim().toUpperCase();
-    const bio = document.getElementById('bio').value.trim();
+    const firstName   = document.getElementById('first-name').value.trim();
+    const lastName    = document.getElementById('last-name').value.trim();
+    const phone       = document.getElementById('phone').value.trim();
+    const location    = document.getElementById('location').value.trim().toUpperCase();
+    const fseUsername = document.getElementById('fse-username').value.trim();
+    const bio         = document.getElementById('bio').value.trim();
 
     const profile = {
       firstName,
       lastName,
       phone,
       location,
+      fseUsername,
       bio,
       updatedAt: Date.now()
     };
@@ -78,6 +111,7 @@
         firstName,
         lastName,
         location,
+        fseUsername,
         bio,
         updatedAt: Date.now()
       });
@@ -158,6 +192,16 @@ nav { position:fixed; top:0; left:0; right:0; z-index:100; background:rgba(10,10
   <div class="section-title">Your Info</div>
   <div class="section-sub">Update your profile details here. Your information is stored securely in Firebase and will appear in the site greeting.</div>
   <div class="profile-card">
+    <div style="display:flex;align-items:center;gap:20px;margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:.4em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Current Rank</div>
+        <div id="profile-rank" style="font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:.05em;">Student Pilot</div>
+      </div>
+      <div style="margin-left:auto;text-align:right;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:.4em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Total Hours</div>
+        <div id="profile-hours" style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--gold);">0.0 hrs</div>
+      </div>
+    </div>
     <div class="profile-field">
       <label>Email</label>
       <div id="profile-email" style="font-family:'Barlow Condensed',sans-serif;color:var(--text);font-size:15px;"></div>
@@ -179,6 +223,10 @@ nav { position:fixed; top:0; left:0; right:0; z-index:100; background:rgba(10,10
       <input id="location" type="text" placeholder="e.g. KDAL">
     </div>
     <div class="profile-field">
+      <label for="fse-username">FSEconomy Username</label>
+      <input id="fse-username" type="text" placeholder="e.g. WestonK">
+    </div>
+    <div class="profile-field">
       <label for="bio">About You</label>
       <textarea id="bio" placeholder="Write a short pilot bio..."></textarea>
     </div>
@@ -186,6 +234,11 @@ nav { position:fixed; top:0; left:0; right:0; z-index:100; background:rgba(10,10
       <button class="button" onclick="saveProfile()">Save Profile</button>
       <div class="profile-note">Your first name is used for the greeting on the main site.</div>
     </div>
+  </div>
+
+  <div class="profile-card" style="margin-top:24px;">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:.4em;text-transform:uppercase;color:var(--gold);margin-bottom:16px;">Certifications</div>
+    <div id="profile-certs"></div>
   </div>
 </div>
 

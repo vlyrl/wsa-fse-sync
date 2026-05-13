@@ -593,6 +593,26 @@ async function fetchLog() {
         await db.ref('pireps').set(pirepsObj);
         console.log('✅ ' + pireps.length + ' flights saved to Firebase');
       }
+
+      // Auto-update each pilot's totalHours by matching fseUsername
+      try {
+        const usersSnap = await db.ref('usersPublic').once('value');
+        if (usersSnap.exists()) {
+          const users = usersSnap.val();
+          for (const uid of Object.keys(users)) {
+            const fseUsername = (users[uid].fseUsername || '').trim().toLowerCase();
+            if (!fseUsername) continue;
+            const pilotHours = pireps
+              .filter(function(p) { return p.pilot.trim().toLowerCase() === fseUsername; })
+              .reduce(function(sum, p) { return sum + (p.blockTime || 0); }, 0);
+            await db.ref('usersPublic/' + uid).update({ totalHours: parseFloat(pilotHours.toFixed(1)) });
+            await db.ref('users/' + uid).update({ totalHours: parseFloat(pilotHours.toFixed(1)) });
+            console.log('✅ Updated hours for ' + fseUsername + ': ' + pilotHours.toFixed(1) + ' hrs');
+          }
+        }
+      } catch (e) {
+        console.error('❌ Pilot hours update failed:', e.message);
+      }
     }
 
     return { flights: flightCount, hoursFlown: parseFloat(hoursFlown) };
