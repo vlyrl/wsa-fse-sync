@@ -24,14 +24,14 @@ if (!process.env.FSE_USERNAME || !process.env.FSE_PASSWORD || !process.env.RESEN
   process.exit(1);
 }
 
-let admin, db, axios, cheerio;
+const axios = require('axios');
+const cheerio = require('cheerio');
+let admin, db;
 
 function initFirebase() {
   if (db) return;
   try {
     admin = require('firebase-admin');
-    axios = require('axios');
-    cheerio = require('cheerio');
 
     let serviceAccount;
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
@@ -74,7 +74,7 @@ let sessionCookies = '';
 async function loginToFSE() {
   let browser;
   try {
-    if (!axios) initFirebase();
+    if (!db) initFirebase();
     const puppeteer = require('puppeteer');
     console.log('🔐 Launching browser for FSEconomy login...');
 
@@ -130,7 +130,7 @@ async function loginToFSE() {
 // FETCH JOBS from groupassignments.jsp
 async function fetchJobs() {
   try {
-    if (!axios) initFirebase();
+    if (!db) initFirebase();
     console.log('📡 Fetching group assignments...');
 
     const response = await axios.get(
@@ -239,7 +239,7 @@ async function fetchJobs() {
 // FETCH AIRCRAFT from aircraft.jsp?id=<groupId>
 async function fetchData() {
   try {
-    if (!axios) initFirebase();
+    if (!db) initFirebase();
     console.log('📡 Fetching aircraft data...');
 
     const response = await axios.get(
@@ -461,7 +461,7 @@ app.listen(PORT, function() {
 // FETCH FLIGHT LOG from log.jsp and calculate total hours + flight count
 async function fetchLog() {
   try {
-    if (!axios) initFirebase();
+    if (!db) initFirebase();
     console.log('📡 Fetching flight log...');
 
     const response = await axios.get(
