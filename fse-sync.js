@@ -16,11 +16,11 @@ if (typeof global.ReadableStream === 'undefined') {
 
 const express = require('express');
 const { Resend } = require('resend');
-const resend = new Resend('re_YeM4S8Ai_BXVDS3ZKnwsXfsJpYUVFWfKQ');
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Validate environment variables first
-if (!process.env.FSE_USERNAME || !process.env.FSE_PASSWORD) {
-  console.error('❌ ERROR: FSE_USERNAME and FSE_PASSWORD environment variables not set!');
+if (!process.env.FSE_USERNAME || !process.env.FSE_PASSWORD || !process.env.RESEND_API_KEY) {
+  console.error('❌ ERROR: FSE_USERNAME, FSE_PASSWORD, and RESEND_API_KEY environment variables must be set!');
   process.exit(1);
 }
 
