@@ -342,45 +342,49 @@
 
   // ── Auth state handling ───────────────────────
   onAuthStateChanged(auth, async user => {
-    const authLink = document.getElementById('nav-auth-link');
+    const authLink     = document.getElementById('nav-auth-link');
     const registerLink = document.getElementById('nav-register-link');
-    const adminBtn = document.getElementById('nav-admin-btn');
-    const signoutBtn = document.getElementById('nav-signout-btn');
+    const adminBtn     = document.getElementById('nav-admin-btn');
+    const signoutBtn   = document.getElementById('nav-signout-btn');
     const pageLoginBtn = document.getElementById('admin-login-btn');
-    if (authLink) {
-      if (user) {
-        await ensureUserRecord(user);
-        const firstName = await getUserFirstName(user);
-        authLink.textContent = `Hello, ${firstName}`;
-        authLink.href = 'profile.html';
-        if (registerLink) registerLink.style.display = 'none';
-        if (pageLoginBtn) pageLoginBtn.style.display = 'none';
-        if (signoutBtn) signoutBtn.style.display = 'inline-block';
-        if (adminBtn) {
-          // Show admin button for your UID or if admin flag is set in Firebase
-          const ADMIN_UID = 'SVhJh3T9nfZT46hmaViKKxPhkbp1';
-          if (user.uid === ADMIN_UID) {
-            adminBtn.style.display = 'inline-block';
-            adminBtn.href = 'admin.html';
-          } else {
-            try {
-              const snap = await get(ref(db, `users/${user.uid}`));
-              const data = snap.exists() ? snap.val() : {};
-              adminBtn.style.display = data.admin === true ? 'inline-block' : 'none';
-              adminBtn.href = 'admin.html';
-            } catch (e) {
-              adminBtn.style.display = 'none';
-            }
-          }
-        }
-      } else {
-        authLink.textContent = 'Sign In';
-        authLink.href = 'login.html';
-        if (registerLink) registerLink.style.display = 'inline-block';
-        if (pageLoginBtn) pageLoginBtn.style.display = 'inline-block';
-        if (signoutBtn) signoutBtn.style.display = 'none';
-        if (adminBtn) adminBtn.style.display = 'none';
+    // Mobile equivalents
+    const mAuthLink     = document.getElementById('mobile-auth-link');
+    const mRegisterLink = document.getElementById('mobile-register-link');
+    const mAdminBtn     = document.getElementById('mobile-admin-btn');
+    const mSignoutBtn   = document.getElementById('mobile-signout-btn');
+
+    if (user) {
+      await ensureUserRecord(user);
+      const firstName = await getUserFirstName(user);
+
+      if (authLink)     { authLink.textContent = `Hello, ${firstName}`; authLink.href = 'profile.html'; }
+      if (mAuthLink)    { mAuthLink.textContent = `Hello, ${firstName}`; mAuthLink.href = 'profile.html'; }
+      if (registerLink)  registerLink.style.display  = 'none';
+      if (mRegisterLink) mRegisterLink.style.display = 'none';
+      if (pageLoginBtn)  pageLoginBtn.style.display  = 'none';
+      if (signoutBtn)    signoutBtn.style.display     = 'inline-block';
+      if (mSignoutBtn)   mSignoutBtn.style.display    = 'block';
+
+      const ADMIN_UID = 'SVhJh3T9nfZT46hmaViKKxPhkbp1';
+      let isAdmin = user.uid === ADMIN_UID;
+      if (!isAdmin) {
+        try {
+          const snap = await get(ref(db, `users/${user.uid}`));
+          isAdmin = snap.exists() && snap.val().admin === true;
+        } catch(e) {}
       }
+      if (adminBtn)  adminBtn.style.display  = isAdmin ? 'inline-block' : 'none';
+      if (mAdminBtn) mAdminBtn.style.display = isAdmin ? 'block'         : 'none';
+    } else {
+      if (authLink)     { authLink.textContent = 'Sign In'; authLink.href = 'login.html'; }
+      if (mAuthLink)    { mAuthLink.textContent = 'Sign In'; mAuthLink.href = 'login.html'; }
+      if (registerLink)  registerLink.style.display  = 'inline-block';
+      if (mRegisterLink) mRegisterLink.style.display = 'block';
+      if (pageLoginBtn)  pageLoginBtn.style.display  = 'inline-block';
+      if (signoutBtn)    signoutBtn.style.display     = 'none';
+      if (mSignoutBtn)   mSignoutBtn.style.display    = 'none';
+      if (adminBtn)      adminBtn.style.display       = 'none';
+      if (mAdminBtn)     mAdminBtn.style.display      = 'none';
     }
   });
 
@@ -586,16 +590,74 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
 .setup-banner-text { font-family:'Barlow Condensed',sans-serif; font-size:13px; letter-spacing:0.1em; color:var(--gold-light); }
 .setup-banner-text strong { color:#fff; }
 
+/* ── Hamburger button (hidden on desktop) ── */
+.nav-hamburger { display:none; flex-direction:column; justify-content:center; gap:5px; background:none; border:none; cursor:pointer; padding:8px; z-index:101; }
+.nav-hamburger span { display:block; width:22px; height:2px; background:var(--text); border-radius:2px; transition:transform 0.28s ease, opacity 0.28s ease; }
+.nav-hamburger.open span:nth-child(1) { transform:translateY(7px) rotate(45deg); }
+.nav-hamburger.open span:nth-child(2) { opacity:0; transform:scaleX(0); }
+.nav-hamburger.open span:nth-child(3) { transform:translateY(-7px) rotate(-45deg); }
+
+/* ── Mobile slide-down menu (hidden on desktop) ── */
+.mobile-menu { display:none; position:fixed; top:64px; left:0; right:0; bottom:0; background:rgba(8,8,8,0.98); backdrop-filter:blur(16px); z-index:99; overflow-y:auto; padding:32px 24px 48px; flex-direction:column; }
+.mobile-menu.open { display:flex; }
+.mobile-menu-links { list-style:none; margin-bottom:32px; }
+.mobile-menu-links li { border-bottom:1px solid var(--border); }
+.mobile-menu-links a { display:block; font-family:'Barlow Condensed',sans-serif; font-size:22px; letter-spacing:0.2em; text-transform:uppercase; color:var(--text); text-decoration:none; padding:18px 0; transition:color 0.2s; }
+.mobile-menu-links a:hover { color:var(--gold); }
+.mobile-menu-actions { display:flex; flex-direction:column; gap:10px; }
+.mobile-menu-btn { display:block; text-align:center; padding:14px; font-family:'Barlow Condensed',sans-serif; font-size:12px; letter-spacing:0.3em; text-transform:uppercase; text-decoration:none; border:1px solid var(--border); color:var(--dim); transition:border-color 0.2s,color 0.2s; }
+.mobile-menu-btn.primary { background:var(--gold); color:#000; border-color:var(--gold); font-weight:600; }
+
+/* ── Log table scroll wrapper ── */
+.log-table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+
 @media (max-width:768px) {
-  nav { padding:0 24px; }
+  /* Nav */
+  nav { padding:0 20px; }
   .nav-links { display:none; }
-  .section,.dispatch-section { padding:60px 24px; }
-  .hero-content { padding:0 24px; padding-top:80px; }
-  .about-grid,.dispatch-grid { grid-template-columns:1fr; gap:40px; }
-  .footer-top { grid-template-columns:1fr 1fr; }
-  .route-item { grid-template-columns:1fr 1fr; }
-  .log-inner,.routes-inner { padding:60px 24px; }
-  footer { padding:60px 24px 40px; }
+  .nav-actions { display:none; }
+  .nav-hamburger { display:flex; }
+
+  /* Hero */
+  .hero-content { padding:0 20px; padding-top:88px; }
+  .hero-title { font-size:clamp(52px,14vw,88px); }
+  .hero-stats { gap:24px; margin-top:40px; }
+  .hero-stats > div { min-width:calc(50% - 12px); }
+  .hero-actions { flex-direction:column; gap:10px; }
+  .hero-actions a { text-align:center; }
+  .hero-divider { width:160px; }
+
+  /* Sections */
+  .section, .dispatch-section { padding:56px 20px; }
+  .log-inner, .routes-inner { padding:56px 20px; }
+  footer { padding:48px 20px 32px; }
+
+  /* Fleet cards */
+  .fleet-grid { grid-template-columns:1fr; gap:2px; }
+
+  /* Routes — stack into 2 columns: airport pair + meta */
+  .route-item { grid-template-columns:1fr 1fr; gap:12px; align-items:center; padding:20px 0; }
+  .route-line { display:none; }
+  .route-airport { font-size:26px; }
+  .route-meta { text-align:right; }
+
+  /* Jobs */
+  .job-grid { grid-template-columns:1fr; }
+
+  /* Log table — horizontal scroll */
+  .log-table-wrap { margin-top:32px; }
+  .log-table { margin-top:0; min-width:520px; }
+
+  /* About */
+  .about-grid, .dispatch-grid { grid-template-columns:1fr; gap:32px; }
+  .badge-grid { grid-template-columns:1fr 1fr; }
+
+  /* Footer */
+  .footer-top { grid-template-columns:1fr 1fr; gap:32px; }
+  .footer-bottom { flex-direction:column; align-items:flex-start; gap:8px; }
+
+  /* Toast */
+  .toast { bottom:20px; right:20px; left:20px; text-align:center; }
 }
 
   .job-pay-block { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
@@ -630,7 +692,29 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
     <a id="nav-admin-btn" class="nav-cta nav-admin-btn" href="admin.html" style="display:none;">Admin</a>
     <a id="nav-signout-btn" class="nav-cta nav-signout-btn" href="#" onclick="logout(); return false;" style="display:none;">Sign Out</a>
   </div>
+  <button class="nav-hamburger" id="nav-hamburger" onclick="toggleMobileMenu()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
 </nav>
+
+<!-- MOBILE MENU -->
+<div class="mobile-menu" id="mobile-menu">
+  <ul class="mobile-menu-links">
+    <li><a href="#fleet"    onclick="closeMobileMenu()">Fleet</a></li>
+    <li><a href="#routes"   onclick="closeMobileMenu()">Routes</a></li>
+    <li><a href="#jobs"     onclick="closeMobileMenu()">Jobs</a></li>
+    <li><a href="#log"      onclick="closeMobileMenu()">Flight Log</a></li>
+    <li><a href="#about"    onclick="closeMobileMenu()">About</a></li>
+    <li><a href="staff.html"  onclick="closeMobileMenu()">Staff</a></li>
+    <li><a href="roster.html" onclick="closeMobileMenu()">Roster</a></li>
+  </ul>
+  <div class="mobile-menu-actions">
+    <a id="mobile-auth-link"     href="login.html"    class="mobile-menu-btn primary">Sign In</a>
+    <a id="mobile-register-link" href="register.html" class="mobile-menu-btn">Register</a>
+    <a id="mobile-admin-btn"     href="admin.html"    class="mobile-menu-btn" style="display:none;">Admin Panel</a>
+    <a id="mobile-signout-btn"   href="#" onclick="logout();closeMobileMenu();return false;" class="mobile-menu-btn" style="display:none;">Sign Out</a>
+  </div>
+</div>
 
 <!-- HERO -->
 <section class="hero" id="home">
@@ -834,6 +918,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
       </div>
       <span class="live-badge"><span class="live-dot"></span>Updates in real time</span>
     </div>
+    <div class="log-table-wrap">
     <table class="log-table">
       <thead>
         <tr>
@@ -844,6 +929,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
         <tr><td colspan="6" style="color:var(--muted);text-align:center;padding:32px 0;">Connecting to live data…</td></tr>
       </tbody>
     </table>
+    </div>
   </div>
 </div>
 
@@ -960,6 +1046,20 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
     if(t){e.preventDefault();t.scrollIntoView({behavior:'smooth'});}
   });
 });
+
+// Hamburger menu
+window.toggleMobileMenu = function() {
+  const menu = document.getElementById('mobile-menu');
+  const btn  = document.getElementById('nav-hamburger');
+  const open = menu.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  document.body.style.overflow = open ? 'hidden' : '';
+};
+window.closeMobileMenu = function() {
+  document.getElementById('mobile-menu').classList.remove('open');
+  document.getElementById('nav-hamburger').classList.remove('open');
+  document.body.style.overflow = '';
+};
 </script>
 
 <script>
