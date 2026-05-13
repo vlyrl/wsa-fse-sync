@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Western Skies Air — Pilot Roster</title>
+<title>Western Skies Air â€” Pilot Roster</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
 
 <script type="module">
@@ -93,7 +93,7 @@
     try {
       await signOut(auth);
       showToast('Signed out successfully');
-      setTimeout(() => window.location.href = 'western-skies-air-live_1.html', 400);
+      setTimeout(() => window.location.href = 'index.html', 400);
     } catch (error) {
       console.error('Sign out failed:', error);
       showToast('Sign out failed', true);
@@ -148,9 +148,9 @@ nav { position:fixed; top:0; left:0; right:0; z-index:100; background:rgba(10,10
 </head>
 <body>
 <nav>
-  <a class="nav-logo" href="western-skies-air-live_1.html">WESTERN <span>SKIES</span> AIR</a>
+  <a class="nav-logo" href="index.html">WESTERN <span>SKIES</span> AIR</a>
   <div class="nav-actions">
-    <a class="nav-cta" href="western-skies-air-live_1.html">Back to Site</a>
+    <a class="nav-cta" href="index.html">Back to Site</a>
     <a class="nav-cta" href="profile.html">Profile</a>    <a class="nav-cta" href="staff.html">Staff</a>    <a id="nav-signout-btn" class="nav-cta" href="#" onclick="signOutAndRedirect(); return false;" style="display:none;">Sign Out</a>
   </div>
 </nav>
@@ -177,7 +177,7 @@ nav { position:fixed; top:0; left:0; right:0; z-index:100; background:rgba(10,10
           </tr>
         </thead>
         <tbody id="roster-body">
-          <tr><td colspan="6">Loading roster…</td></tr>
+          <tr><td colspan="6">Loading rosterâ€¦</td></tr>
         </tbody>
       </table>
     </div>

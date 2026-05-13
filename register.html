@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Western Skies Air — Register</title>
+<title>Western Skies Air â€” Register</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
 
 <script type="module">
@@ -28,7 +28,7 @@
 
   onAuthStateChanged(auth, user => {
     if (user) {
-      window.location.href = 'western-skies-air-live_1.html';
+      window.location.href = 'index.html';
     }
   });
 
@@ -81,7 +81,7 @@
         await updateProfile(user, { displayName });
       }
       showToast('Registration successful! Redirecting...');
-      setTimeout(() => window.location.href = 'western-skies-air-live_1.html', 1400);
+      setTimeout(() => window.location.href = 'index.html', 1400);
     } catch (error) {
       console.error('Registration failed:', error);
       showToast('Registration failed: ' + (error.message || 'Unknown error'), true);
@@ -124,10 +124,10 @@ body { background: linear-gradient(160deg, #050d1a 0%, #0a1628 30%, #0d2040 60%,
     <input id="email" class="register-input" type="email" placeholder="Email" required>
     <input id="password" class="register-input" type="password" placeholder="Password" required>
     <input id="confirm-password" class="register-input" type="password" placeholder="Confirm Password" required>
-    <button class="register-button" type="submit">Register →</button>
+    <button class="register-button" type="submit">Register â†’</button>
   </form>
   <a href="login.html" class="register-action">Already have an account? Sign In</a>
-  <a href="western-skies-air-live_1.html" class="register-action">← Back to Public Site</a>
+  <a href="index.html" class="register-action">â† Back to Public Site</a>
 </div>
 
 <div class="toast" id="toast"></div>
