@@ -497,6 +497,7 @@ async function fetchLog() {
     const $ = cheerio.load(response.data);
     let totalMinutes = 0;
     const pireps = [];
+    let totalEarnings = 0;
 
     $('table').each(function(ti, table) {
       const headers = $(table).find('th').map(function(i, th) {
@@ -517,6 +518,7 @@ async function fetchLog() {
       const iAircraft = col(['aircraft', 'reg', 'tail']);
       const iPilot    = col(['pilot', 'name']);
       const iTime     = col(['time', 'block', 'duration']);
+      const iEarnings = col(['earning', 'revenue', 'pay', 'income']);
 
       console.log('   Log table headers: ' + headers.join(', '));
 
@@ -553,13 +555,19 @@ async function fetchLog() {
 
         if (dep === '???' && arr === '???') return;
 
+        // Parse earnings for this flight
+        const earningsRaw = cellText(iEarnings).replace(/[$,]/g, '');
+        const earnings = parseFloat(earningsRaw) || 0;
+        totalEarnings += earnings;
+
         pireps.push({
           date,
           dep,
           arr,
           aircraft,
           pilot,
-          blockTime: parseFloat((blockMinutes / 60).toFixed(2))
+          blockTime: parseFloat((blockMinutes / 60).toFixed(2)),
+          earnings: earnings
         });
       });
     });
@@ -568,10 +576,13 @@ async function fetchLog() {
     const hoursFlown  = (totalMinutes / 60).toFixed(1);
     console.log('✅ Flight log: ' + flightCount + ' flights, ' + hoursFlown + ' hours');
 
+    console.log('✅ Total earnings: $' + totalEarnings.toFixed(2));
+
     if (db) {
       await db.ref('stats').update({
         flights: flightCount,
-        hoursFlown: parseFloat(hoursFlown)
+        hoursFlown: parseFloat(hoursFlown),
+        revenue: totalEarnings.toFixed(2)
       });
 
       if (pireps.length) {
