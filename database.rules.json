@@ -31,10 +31,12 @@
       ".write": "auth != null"
     },
     "jobsAvailable": {
-      ".read": true
+      ".read": true,
+      ".write": "auth != null || root.child('_admin').val() === true"
     },
     "jobsLastSync": {
-      ".read": true
+      ".read": true,
+      ".write": "auth != null || root.child('_admin').val() === true"
     }
   }
 }

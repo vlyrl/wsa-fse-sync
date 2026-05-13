@@ -1,0 +1,51 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "fleet": {
+      ".read": true,
+      ".write": false
+    },
+    "stats": {
+      ".read": true,
+      ".write": false
+    },
+    "pireps": {
+      ".read": true,
+      ".write": false
+    },
+    "users": {
+      ".read": "auth != null && (auth.uid === 'SVhJh3T9nfZT46hmaViKKxPhkbp1' || root.child('users').child(auth.uid).child('admin').val() === true)",
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.uid === 'SVhJh3T9nfZT46hmaViKKxPhkbp1' || root.child('users').child(auth.uid).child('admin').val() === true)",
+        ".write": "auth != null && (auth.uid === $uid || auth.uid === 'SVhJh3T9nfZT46hmaViKKxPhkbp1' || root.child('users').child(auth.uid).child('admin').val() === true)"
+      }
+    },
+    "usersPublic": {
+      ".read": true,
+      "$uid": {
+        ".write": "auth != null && (auth.uid === $uid || auth.uid === 'SVhJh3T9nfZT46hmaViKKxPhkbp1' || root.child('users').child(auth.uid).child('admin').val() === true)"
+      }
+    },
+    "pilotCount": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "jobsAvailable": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "jobsLastSync": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "_lastKnownPilotCount": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "_lastSyncTime": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}

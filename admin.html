@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WSA — Admin Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, get, set, update, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCGHP1zInIv94yKym_nzpFrBRz6dtYwlps",
+    authDomain: "wsair-f3c09.firebaseapp.com",
+    projectId: "wsair-f3c09",
+    storageBucket: "wsair-f3c09.firebasestorage.app",
+    messagingSenderId: "712143874991",
+    appId: "1:712143874991:web:3ca4c58de815c8cf421d5a"
+  };
+
+  const app  = initializeApp(firebaseConfig);
+  const db   = getDatabase(app);
+  const auth = getAuth(app);
+
+  // ── Auth guard ──────────────────────────────────────────────
+  onAuthStateChanged(auth, async user => {
+    if (!user) { window.location.href = 'login.html'; return; }
+    const ADMIN_UID = 'SVhJh3T9nfZT46hmaViKKxPhkbp1';
+    const snap = await get(ref(db, `users/${user.uid}`));
+    const data = snap.exists() ? snap.val() : {};
+    const isAdmin = user.uid === ADMIN_UID || data.admin === true;
+    if (!isAdmin) {
+      window.location.href = 'western-skies-air-live_1.html';
+      return;
+    }
+    document.getElementById('admin-name').textContent = data.firstName || user.email;
+    loadPilots();
+  });
+
+  window.doSignOut = async () => {
+    await signOut(auth);
+    window.location.href = 'western-skies-air-live_1.html';
+  };
+
+  // ── Toast ────────────────────────────────────────────────────
+  function toast(msg, err = false) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show ' + (err ? 'err' : 'ok');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 3800);
+  }
+
+  // ── Load all pilots ──────────────────────────────────────────
+  let allPilots = [];
+
+  async function loadPilots() {
+    const snap = await get(ref(db, 'users'));
+    if (!snap.exists()) return;
+    allPilots = Object.entries(snap.val()).map(([uid, d]) => ({ uid, ...d }));
+    renderPilotTable(allPilots);
+    populateEmailDropdown(allPilots);
+    document.getElementById('pilot-count').textContent = allPilots.length;
+  }
+
+  function renderPilotTable(pilots) {
+    const tbody = document.getElementById('pilot-tbody');
+    tbody.innerHTML = pilots.map(p => `
+      <tr>
+        <td>${p.firstName || ''} ${p.lastName || ''}</td>
+        <td>${p.email || ''}</td>
+        <td>${p.location || '—'}</td>
+        <td><span class="badge ${p.admin ? 'badge-admin' : 'badge-pilot'}">${p.admin ? 'Admin' : 'Pilot'}</span></td>
+        <td><button class="tbl-btn" onclick="openEdit('${p.uid}')">Edit</button></td>
+      </tr>`).join('');
+  }
+
+  function populateEmailDropdown(pilots) {
+    const sel = document.getElementById('email-pilot-select');
+    sel.innerHTML = '<option value="">— Select a pilot —</option>' +
+      pilots.map(p => `<option value="${p.uid}">${p.firstName || ''} ${p.lastName || ''} (${p.email || ''})</option>`).join('');
+  }
+
+  // ── Search ───────────────────────────────────────────────────
+  window.filterPilots = function() {
+    const q = document.getElementById('search').value.toLowerCase();
+    const filtered = allPilots.filter(p =>
+      (p.firstName + ' ' + p.lastName + ' ' + p.email).toLowerCase().includes(q)
+    );
+    renderPilotTable(filtered);
+  };
+
+  // ── Edit pilot modal ─────────────────────────────────────────
+  let editingUid = null;
+
+  window.openEdit = async function(uid) {
+    editingUid = uid;
+    const snap = await get(ref(db, `users/${uid}`));
+    const d = snap.val() || {};
+    document.getElementById('edit-first').value  = d.firstName  || '';
+    document.getElementById('edit-last').value   = d.lastName   || '';
+    document.getElementById('edit-email').value  = d.email      || '';
+    document.getElementById('edit-phone').value  = d.phone      || '';
+    document.getElementById('edit-loc').value    = d.location   || '';
+    document.getElementById('edit-bio').value    = d.bio        || '';
+    document.getElementById('edit-admin').checked = !!d.admin;
+    document.getElementById('modal').classList.add('open');
+  };
+
+  window.closeModal = function() {
+    document.getElementById('modal').classList.remove('open');
+    editingUid = null;
+  };
+
+  window.saveEdit = async function() {
+    if (!editingUid) return;
+    const firstName = document.getElementById('edit-first').value.trim();
+    const lastName  = document.getElementById('edit-last').value.trim();
+    const phone     = document.getElementById('edit-phone').value.trim();
+    const location  = document.getElementById('edit-loc').value.trim().toUpperCase();
+    const bio       = document.getElementById('edit-bio').value.trim();
+    const isAdmin   = document.getElementById('edit-admin').checked;
+
+    try {
+      await update(ref(db, `users/${editingUid}`), { firstName, lastName, phone, location, bio, admin: isAdmin, updatedAt: Date.now() });
+      await update(ref(db, `usersPublic/${editingUid}`), { firstName, lastName, location, bio, updatedAt: Date.now() });
+      toast('Profile saved successfully');
+      closeModal();
+      loadPilots();
+    } catch (e) {
+      toast('Save failed: ' + e.message, true);
+    }
+  };
+
+  window.deletePilot = async function() {
+    if (!editingUid) return;
+    if (!confirm('Are you sure you want to delete this pilot? This cannot be undone.')) return;
+    try {
+      await remove(ref(db, `users/${editingUid}`));
+      await remove(ref(db, `usersPublic/${editingUid}`));
+      toast('Pilot deleted');
+      closeModal();
+      loadPilots();
+    } catch (e) {
+      toast('Delete failed: ' + e.message, true);
+    }
+  };
+
+  // ── Email sender ─────────────────────────────────────────────
+  window.onEmailPilotChange = function() {
+    const uid = document.getElementById('email-pilot-select').value;
+    const pilot = allPilots.find(p => p.uid === uid);
+    const emailField = document.getElementById('email-to');
+    const nameField  = document.getElementById('email-name');
+    if (pilot) {
+      emailField.value = pilot.email || '';
+      nameField.value  = pilot.firstName || '';
+    } else {
+      emailField.value = '';
+      nameField.value  = '';
+    }
+  };
+
+  window.sendWelcomeEmail = async function() {
+    const email = document.getElementById('email-to').value.trim();
+    const firstName = document.getElementById('email-name').value.trim();
+    if (!document.getElementById('email-pilot-select').value) { toast('Select a pilot first', true); return; }
+    if (!email) { toast('This pilot has no email saved in Firebase', true); return; }
+
+    const btn = document.getElementById('send-welcome-btn');
+    btn.disabled = true; btn.textContent = 'Sending...';
+
+    try {
+      const res = await fetch('http://localhost:3000/send-welcome', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, firstName })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast('Welcome email sent to ' + email);
+      } else {
+        toast('Failed: ' + (data.error || 'Unknown error'), true);
+      }
+    } catch (e) {
+      toast('Could not reach sync server. Is it running?', true);
+    }
+    btn.disabled = false; btn.textContent = 'Send Welcome Email';
+  };
+
+  window.sendCustomEmail = async function() {
+    const email   = document.getElementById('email-to').value.trim();
+    const subject = document.getElementById('email-subject').value.trim();
+    const body    = document.getElementById('email-body').value.trim();
+    const firstName = document.getElementById('email-name').value.trim() || 'Pilot';
+    if (!document.getElementById('email-pilot-select').value) { toast('Select a pilot first', true); return; }
+    if (!email) { toast('This pilot has no email saved in Firebase', true); return; }
+    if (!subject || !body) { toast('Fill in subject and message', true); return; }
+
+    const btn = document.getElementById('send-custom-btn');
+    btn.disabled = true; btn.textContent = 'Sending...';
+
+    try {
+      const res = await fetch('http://localhost:3000/send-custom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, firstName, subject, body })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast('Email sent to ' + email);
+        document.getElementById('email-subject').value = '';
+        document.getElementById('email-body').value = '';
+      } else {
+        toast('Failed: ' + (data.error || 'Unknown error'), true);
+      }
+    } catch (e) {
+      toast('Could not reach sync server. Is it running?', true);
+    }
+    btn.disabled = false; btn.textContent = 'Send Custom Email';
+  };
+</script>
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --gold: #c8860a; --gold-light: #f0a830;
+  --black: #0a0a0a; --surface: #141414; --surface2: #1c1c1c; --surface3: #222;
+  --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.12);
+  --text: #fff; --muted: #777; --dim: rgba(255,255,255,0.4);
+}
+html { scroll-behavior: smooth; }
+body { background: var(--black); color: var(--text); font-family: 'Barlow', sans-serif; font-weight: 300; min-height: 100vh; }
+
+/* NAV */
+nav { position: fixed; top: 0; left: 0; right: 0; z-index: 200; height: 60px; background: rgba(10,10,10,0.96); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; backdrop-filter: blur(12px); }
+.nav-logo { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 0.12em; color: var(--text); text-decoration: none; }
+.nav-logo span { color: var(--gold); }
+.nav-right { display: flex; align-items: center; gap: 16px; }
+.nav-user { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
+.nav-badge { font-family: 'Barlow Condensed', sans-serif; font-size: 9px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--gold); background: rgba(200,134,10,0.15); border: 1px solid rgba(200,134,10,0.3); padding: 3px 10px; border-radius: 999px; }
+.nav-btn { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); background: none; border: 1px solid var(--border2); padding: 6px 16px; cursor: pointer; transition: color 0.2s, border-color 0.2s; }
+.nav-btn:hover { color: var(--text); border-color: var(--gold); }
+
+/* LAYOUT */
+.wrapper { max-width: 1200px; margin: 0 auto; padding: 90px 32px 80px; }
+.page-header { margin-bottom: 48px; }
+.page-eyebrow { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 0.45em; text-transform: uppercase; color: var(--gold); margin-bottom: 12px; }
+.page-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(40px, 6vw, 64px); line-height: 1; }
+.page-title span { color: var(--gold); }
+
+/* GRID */
+.admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
+@media (max-width: 900px) { .admin-grid { grid-template-columns: 1fr; } }
+
+/* CARDS */
+.card { background: var(--surface); border: 1px solid var(--border); padding: 28px; }
+.card-title { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 0.08em; margin-bottom: 6px; }
+.card-sub { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 24px; }
+
+/* FORM ELEMENTS */
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.field label { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted); }
+.field input, .field select, .field textarea {
+  background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+  font-family: 'Barlow Condensed', sans-serif; font-size: 14px; padding: 10px 14px;
+  outline: none; width: 100%; transition: border-color 0.2s;
+}
+.field input:focus, .field select:focus, .field textarea:focus { border-color: var(--gold); }
+.field textarea { min-height: 100px; resize: vertical; }
+.field select option { background: var(--surface2); }
+
+/* BUTTONS */
+.btn { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; font-weight: 600; padding: 12px 24px; cursor: pointer; border: none; transition: background 0.2s, transform 0.15s; display: inline-block; }
+.btn:hover:not(:disabled) { transform: scale(1.04); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-gold { background: var(--gold); color: #000; }
+.btn-gold:hover:not(:disabled) { background: var(--gold-light); }
+.btn-outline { background: transparent; color: var(--gold); border: 1px solid var(--gold); }
+.btn-outline:hover:not(:disabled) { background: var(--gold); color: #000; }
+.btn-danger { background: #7f1d1d; color: #fca5a5; }
+.btn-danger:hover:not(:disabled) { background: #991b1b; }
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+
+/* DIVIDER */
+.divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+/* PILOT TABLE SECTION */
+.table-section { background: var(--surface); border: 1px solid var(--border); padding: 28px; }
+.table-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.table-search { background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-family: 'Barlow Condensed', sans-serif; font-size: 13px; padding: 8px 14px; outline: none; width: 260px; transition: border-color 0.2s; }
+.table-search:focus { border-color: var(--gold); }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { font-family: 'Barlow Condensed', sans-serif; font-size: 9px; letter-spacing: 0.35em; text-transform: uppercase; color: var(--muted); padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; }
+td { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; padding: 14px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+.badge { font-family: 'Barlow Condensed', sans-serif; font-size: 9px; letter-spacing: 0.25em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; }
+.badge-admin { color: var(--gold); background: rgba(200,134,10,0.15); border: 1px solid rgba(200,134,10,0.3); }
+.badge-pilot { color: var(--muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border); }
+.tbl-btn { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; background: transparent; border: 1px solid var(--border2); color: var(--dim); padding: 4px 12px; cursor: pointer; transition: border-color 0.2s, color 0.2s; }
+.tbl-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+/* STAT STRIP */
+.stat-strip { display: flex; gap: 24px; margin-bottom: 32px; flex-wrap: wrap; }
+.stat-box { background: var(--surface); border: 1px solid var(--border); padding: 20px 28px; flex: 1; min-width: 140px; }
+.stat-box-num { font-family: 'Bebas Neue', sans-serif; font-size: 36px; color: var(--gold); line-height: 1; }
+.stat-box-label { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+
+/* MODAL */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 500; display: none; align-items: center; justify-content: center; padding: 24px; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--surface); border: 1px solid var(--border2); width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto; padding: 32px; position: relative; }
+.modal-title { font-family: 'Bebas Neue', sans-serif; font-size: 26px; margin-bottom: 4px; }
+.modal-sub { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 24px; }
+.modal-close { position: absolute; top: 16px; right: 16px; background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; line-height: 1; }
+.modal-close:hover { color: var(--text); }
+.checkbox-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.checkbox-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--gold); cursor: pointer; }
+.checkbox-row label { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); cursor: pointer; }
+
+/* TOAST */
+.toast { position: fixed; bottom: 28px; right: 28px; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600; padding: 13px 22px; transform: translateY(80px); opacity: 0; transition: transform 0.35s, opacity 0.35s; z-index: 999; pointer-events: none; }
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.ok  { background: var(--gold); color: #000; }
+.toast.err { background: #c0392b; color: #fff; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="western-skies-air-live_1.html">WESTERN <span>SKIES</span> AIR</a>
+  <div class="nav-right">
+    <span class="nav-badge">Admin</span>
+    <span class="nav-user">Signed in as <strong id="admin-name">—</strong></span>
+    <button class="nav-btn" onclick="doSignOut()">Sign Out</button>
+  </div>
+</nav>
+
+<div class="wrapper">
+
+  <div class="page-header">
+    <div class="page-eyebrow">Operations Center</div>
+    <div class="page-title">ADMIN <span>PANEL</span></div>
+  </div>
+
+  <!-- STAT STRIP -->
+  <div class="stat-strip">
+    <div class="stat-box">
+      <div class="stat-box-num" id="pilot-count">—</div>
+      <div class="stat-box-label">Registered Pilots</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-box-num">WSA</div>
+      <div class="stat-box-label">Group ID 109630</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-box-num">KSJT</div>
+      <div class="stat-box-label">Home Base</div>
+    </div>
+  </div>
+
+  <!-- TOP GRID: Email + Quick Actions -->
+  <div class="admin-grid">
+
+    <!-- EMAIL SENDER -->
+    <div class="card">
+      <div class="card-title">Send Email</div>
+      <div class="card-sub">Send welcome or custom emails to pilots</div>
+
+      <div class="field">
+        <label>Select Pilot (optional)</label>
+        <select id="email-pilot-select" onchange="onEmailPilotChange()">
+          <option value="">— Select a pilot —</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>To (Email Address)</label>
+        <input type="email" id="email-to" placeholder="Auto-filled from pilot selection" readonly style="opacity:0.6;cursor:not-allowed;">
+      </div>
+      <div class="field">
+        <label>Pilot First Name</label>
+        <input type="text" id="email-name" placeholder="Auto-filled from pilot selection" readonly style="opacity:0.6;cursor:not-allowed;">
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-outline" id="send-welcome-btn" onclick="sendWelcomeEmail()">Send Welcome Email</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="card-sub" style="margin-bottom:14px;">Custom Message</div>
+      <div class="field">
+        <label>Subject</label>
+        <input type="text" id="email-subject" placeholder="Email subject line">
+      </div>
+      <div class="field">
+        <label>Message Body</label>
+        <textarea id="email-body" placeholder="Write your message here..."></textarea>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-gold" id="send-custom-btn" onclick="sendCustomEmail()">Send Custom Email</button>
+      </div>
+    </div>
+
+    <!-- QUICK INFO -->
+    <div class="card">
+      <div class="card-title">Quick Reference</div>
+      <div class="card-sub">Admin tools and links</div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <a href="western-skies-air-live_1.html" class="btn btn-outline" style="text-align:center;text-decoration:none;">← Back to Main Site</a>
+        <a href="roster.html" class="btn btn-outline" style="text-align:center;text-decoration:none;">View Pilot Roster</a>
+        <a href="staff.html" class="btn btn-outline" style="text-align:center;text-decoration:none;">Staff Page</a>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="card-sub" style="margin-bottom:12px;">Sync Server</div>
+      <p style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:14px;">
+        To trigger a data sync from FSEconomy, the sync server must be running locally on port 3000.
+      </p>
+      <button class="btn btn-gold" onclick="triggerSync()">Trigger FSE Sync</button>
+      <div id="sync-result" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);margin-top:10px;"></div>
+    </div>
+
+  </div>
+
+  <!-- PILOT TABLE -->
+  <div class="table-section">
+    <div class="table-header">
+      <div>
+        <div class="card-title">Pilot Profiles</div>
+        <div class="card-sub">Click Edit to modify any pilot's details</div>
+      </div>
+      <input class="table-search" type="text" id="search" placeholder="Search pilots..." oninput="filterPilots()">
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Home Base</th>
+            <th>Role</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="pilot-tbody">
+          <tr><td colspan="5" style="color:var(--muted);">Loading pilots...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-title">Edit Pilot</div>
+    <div class="modal-sub">Changes save directly to Firebase</div>
+
+    <div class="field">
+      <label>First Name</label>
+      <input type="text" id="edit-first" placeholder="First name">
+    </div>
+    <div class="field">
+      <label>Last Name</label>
+      <input type="text" id="edit-last" placeholder="Last name">
+    </div>
+    <div class="field">
+      <label>Email (read only)</label>
+      <input type="email" id="edit-email" placeholder="Email" readonly style="opacity:0.5;cursor:not-allowed;">
+    </div>
+    <div class="field">
+      <label>Phone</label>
+      <input type="text" id="edit-phone" placeholder="Phone number">
+    </div>
+    <div class="field">
+      <label>Home Base (ICAO)</label>
+      <input type="text" id="edit-loc" placeholder="e.g. KSJT">
+    </div>
+    <div class="field">
+      <label>Bio</label>
+      <textarea id="edit-bio" placeholder="Pilot bio..."></textarea>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="edit-admin">
+      <label for="edit-admin">Admin privileges</label>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-gold" onclick="saveEdit()">Save Changes</button>
+      <button class="btn btn-danger" onclick="deletePilot()">Delete Pilot</button>
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+async function triggerSync() {
+  const btn = event.target;
+  const result = document.getElementById('sync-result');
+  btn.disabled = true;
+  btn.textContent = 'Syncing...';
+  result.textContent = '';
+  try {
+    const res = await fetch('http://localhost:3000/sync', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      result.textContent = '✅ Synced ' + data.aircraftSynced + ' aircraft · ' + new Date().toLocaleTimeString();
+    } else {
+      result.textContent = '❌ ' + (data.error || 'Sync failed');
+    }
+  } catch (e) {
+    result.textContent = '❌ Sync server not reachable';
+  }
+  btn.disabled = false;
+  btn.textContent = 'Trigger FSE Sync';
+}
+</script>
+
+</body>
+</html>
