@@ -198,7 +198,7 @@
 
     try {
       // Call FSEconomy sync API endpoint on the local sync server
-      const response = await fetch('http://localhost:3000/sync', {
+      const response = await fetch('https://wsa-fse-sync-production.up.railway.app/sync', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
