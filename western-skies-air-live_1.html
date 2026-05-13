@@ -107,8 +107,8 @@
       if (document.getElementById('badge-revenue')) document.getElementById('badge-revenue').textContent = s.revenue ? '$' + s.revenue : 'N/A';
     });
 
-    onValue(ref(db, 'pilotCount'), snap => {
-      const count = snap.exists() ? snap.val() : 0;
+    onValue(ref(db, 'usersPublic'), snap => {
+      const count = snap.exists() ? Object.keys(snap.val() || {}).length : 0;
       const pilotEl = document.getElementById('stat-pilots');
       const badgeEl = document.getElementById('badge-pilots');
       if (pilotEl) pilotEl.textContent = count;
