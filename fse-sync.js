@@ -33,20 +33,24 @@ function initFirebase() {
     axios = require('axios');
     cheerio = require('cheerio');
 
-    const keyPath = './serviceAccountKey.json';
-    console.log('🔍 Looking for Firebase key at: ' + keyPath);
-
-    if (!fs.existsSync(keyPath)) {
-      console.error('❌ File not found: ' + keyPath + ' (cwd: ' + process.cwd() + ')');
-      throw new Error('serviceAccountKey.json not found at ' + keyPath);
+    let serviceAccount;
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      console.log('✅ Firebase credentials loaded from environment variable');
+    } else {
+      const keyPath = './serviceAccountKey.json';
+      console.log('🔍 Looking for Firebase key at: ' + keyPath);
+      if (!fs.existsSync(keyPath)) {
+        console.error('❌ File not found: ' + keyPath + ' — set FIREBASE_SERVICE_ACCOUNT env var on Railway');
+        throw new Error('serviceAccountKey.json not found and FIREBASE_SERVICE_ACCOUNT not set');
+      }
+      serviceAccount = require(keyPath);
     }
-
-    const serviceAccount = require(keyPath);
 
     if (!admin.apps.length) {
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
-        databaseURL: 'https://wsair-f3c09-default-rtdb.firebaseio.com/'
+        databaseURL: 'https://wsair-f3c09-default-rtdb.firebaseio.com'
       });
     }
     db = admin.database();
