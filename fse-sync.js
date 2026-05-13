@@ -467,7 +467,7 @@ app.listen(PORT, function() {
 });
 
 
-// FETCH FLIGHT LOG from log.jsp and calculate total hours + flight count
+// FETCH FLIGHT LOG from log.jsp — extracts individual flights and saves to pireps
 async function fetchLog() {
   try {
     if (!db) initFirebase();
@@ -496,40 +496,76 @@ async function fetchLog() {
 
     const $ = cheerio.load(response.data);
     let totalMinutes = 0;
-    let flightCount = 0;
+    const pireps = [];
 
-    // Find the log table — look for one with a time/duration column
     $('table').each(function(ti, table) {
-      const headerText = $(table).find('th').map(function(i,th){ return $(th).text(); }).get().join(' ');
-      if (!headerText.includes('From') && !headerText.includes('Dep')) return;
+      const headers = $(table).find('th').map(function(i, th) {
+        return $(th).text().trim().toLowerCase();
+      }).get();
+
+      const hasFrom = headers.some(h => h.includes('from') || h.includes('dep'));
+      if (!hasFrom) return;
+
+      // Map header names to column indices
+      function col(keywords) {
+        const idx = headers.findIndex(h => keywords.some(k => h.includes(k)));
+        return idx >= 0 ? idx : -1;
+      }
+      const iDate     = col(['date']);
+      const iFrom     = col(['from', 'dep']);
+      const iTo       = col(['to', 'dest', 'arr']);
+      const iAircraft = col(['aircraft', 'reg', 'tail']);
+      const iPilot    = col(['pilot', 'name']);
+      const iTime     = col(['time', 'block', 'duration']);
+
+      console.log('   Log table headers: ' + headers.join(', '));
 
       $(table).find('tr').each(function(ri, row) {
-        if (ri === 0) return; // skip header
+        if (ri === 0) return;
         const cells = $(row).find('td');
         if (cells.length < 3) return;
 
-        // Look through all cells for a time value in h:mm or hh:mm format
-        cells.each(function(ci, cell) {
-          const text = $(cell).text().trim();
-          const timeMatch = text.match(/^(\d+):(\d{2})$/);
-          if (timeMatch) {
-            totalMinutes += parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2]);
-            flightCount++;
-          }
+        function cellText(idx) {
+          return idx >= 0 && cells.eq(idx).length ? cells.eq(idx).text().replace(/\s+/g, ' ').trim() : '';
+        }
+
+        // Find block time — prefer mapped column, else scan all cells
+        let blockMinutes = 0;
+        let timeStr = cellText(iTime);
+        let timeMatch = timeStr.match(/(\d+):(\d{2})/);
+        if (!timeMatch) {
+          cells.each(function(ci, cell) {
+            const t = $(cell).text().trim();
+            const m = t.match(/^(\d+):(\d{2})$/);
+            if (m && !timeMatch) { timeMatch = m; timeStr = t; }
+          });
+        }
+        if (timeMatch) {
+          blockMinutes = parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2]);
+          totalMinutes += blockMinutes;
+        }
+
+        const dep      = cellText(iFrom).toUpperCase() || '???';
+        const arr      = cellText(iTo).toUpperCase()   || '???';
+        const aircraft = cellText(iAircraft)            || 'Unknown';
+        const pilot    = cellText(iPilot)               || 'Unknown';
+        const date     = cellText(iDate)                || new Date().toISOString().slice(0, 10);
+
+        if (dep === '???' && arr === '???') return;
+
+        pireps.push({
+          date,
+          dep,
+          arr,
+          aircraft,
+          pilot,
+          blockTime: parseFloat((blockMinutes / 60).toFixed(2))
         });
       });
     });
 
-    // If no h:mm found, just count rows as flights
-    if (flightCount === 0) {
-      $('table').each(function(ti, table) {
-        const headerText = $(table).find('th').map(function(i,th){ return $(th).text(); }).get().join(' ');
-        if (!headerText.includes('From') && !headerText.includes('Dep')) return;
-        flightCount = $(table).find('tr').length - 1; // subtract header row
-      });
-    }
-
-    const hoursFlown = (totalMinutes / 60).toFixed(1);
+    const flightCount = pireps.length;
+    const hoursFlown  = (totalMinutes / 60).toFixed(1);
     console.log('✅ Flight log: ' + flightCount + ' flights, ' + hoursFlown + ' hours');
 
     if (db) {
@@ -537,7 +573,15 @@ async function fetchLog() {
         flights: flightCount,
         hoursFlown: parseFloat(hoursFlown)
       });
-      console.log('✅ Stats saved to Firebase');
+
+      if (pireps.length) {
+        const pirepsObj = {};
+        pireps.forEach(function(p, i) {
+          pirepsObj['flight-' + i] = p;
+        });
+        await db.ref('pireps').set(pirepsObj);
+        console.log('✅ ' + pireps.length + ' flights saved to Firebase');
+      }
     }
 
     return { flights: flightCount, hoursFlown: parseFloat(hoursFlown) };
