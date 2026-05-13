@@ -26,6 +26,16 @@
     setTimeout(() => toast.classList.remove('show'), 3800);
   }
 
+  function getRank(hours, chiefPilot) {
+    if (chiefPilot) return { title: 'Chief Pilot', color: '#c8860a' };
+    const h = Number(hours) || 0;
+    if (h >= 500)  return { title: 'Senior Captain',       color: '#e8c96a' };
+    if (h >= 250)  return { title: 'Captain',              color: '#4fc3f7' };
+    if (h >= 100)  return { title: 'Senior First Officer', color: '#81c784' };
+    if (h >= 25)   return { title: 'First Officer',        color: '#aaa' };
+    return           { title: 'Student Pilot',             color: '#666' };
+  }
+
   async function loadRoster() {
     const body = document.getElementById('roster-body');
     const countEl = document.getElementById('roster-count');
@@ -50,15 +60,23 @@
         return;
       }
 
-      const sorted = pilots.sort((a, b) => (a.lastName || '').localeCompare(b.lastName || '') || (a.firstName || '').localeCompare(b.firstName || ''));
+      const sorted = pilots.sort((a, b) => {
+        if (a.chiefPilot && !b.chiefPilot) return -1;
+        if (!a.chiefPilot && b.chiefPilot) return 1;
+        return (b.totalHours || 0) - (a.totalHours || 0);
+      });
       countEl.textContent = String(sorted.length);
       body.innerHTML = sorted.map(pilot => {
         const name = [pilot.firstName, pilot.lastName].filter(Boolean).join(' ') || 'Pilot';
         const location = pilot.location || 'Unknown';
         const bio = pilot.bio ? pilot.bio.substring(0, 80) : 'No bio available';
         const date = pilot.createdAt || pilot.updatedAt || 0;
+        const rank = getRank(pilot.totalHours, pilot.chiefPilot);
+        const hours = Number(pilot.totalHours || 0).toFixed(1);
         return `<tr>
-          <td>${name}</td>
+          <td><a href="pilot-profile.html?uid=${pilot.uid}" style="color:var(--text);text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='var(--text)'">${name}</a></td>
+          <td><span style="color:${rank.color};font-family:'Barlow Condensed',sans-serif;letter-spacing:.15em;text-transform:uppercase;">${rank.title}</span></td>
+          <td>${hours} hrs</td>
           <td>${location}</td>
           <td>${bio}</td>
           <td>${date ? new Date(date).toLocaleDateString() : '-'}</td>
@@ -151,13 +169,15 @@ nav { position:fixed; top:0; left:0; right:0; z-index:100; background:rgba(10,10
         <thead>
           <tr>
             <th>Name</th>
+            <th>Rank</th>
+            <th>Hours</th>
             <th>Location</th>
             <th>Bio</th>
             <th>Joined</th>
           </tr>
         </thead>
         <tbody id="roster-body">
-          <tr><td colspan="4">Loading roster…</td></tr>
+          <tr><td colspan="6">Loading roster…</td></tr>
         </tbody>
       </table>
     </div>
