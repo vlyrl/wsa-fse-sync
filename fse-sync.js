@@ -267,11 +267,7 @@ async function fetchData() {
     await page.goto(FSE_CONFIG.baseUrl + '/aircraft.jsp?id=' + FSE_CONFIG.groupId, { waitUntil: 'networkidle2', timeout: 30000 });
 
     // Wait for DataTable to render
-<<<<<<< HEAD
     await new Promise(r => setTimeout(r, 2000));
-=======
-    await page.waitForTimeout(2000);
->>>>>>> 9bd141af511256ac9233775698fa0804aa3bf587
 
     const html = await page.content();
     await browser.close();
