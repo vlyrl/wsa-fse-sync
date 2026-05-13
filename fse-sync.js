@@ -245,74 +245,49 @@ async function fetchJobs() {
   }
 }
 
-// FETCH AIRCRAFT from aircraft.jsp?id=<groupId>
+// FETCH AIRCRAFT using Puppeteer (page uses JS-rendered DataTables)
 async function fetchData() {
+  let browser;
   try {
     if (!db) initFirebase();
-    console.log('📡 Fetching aircraft data...');
+    console.log('📡 Fetching aircraft data (Puppeteer)...');
 
-    const response = await axios.get(
-      FSE_CONFIG.baseUrl + '/aircraft.jsp?id=' + FSE_CONFIG.groupId,
-      {
-        headers: {
-          'Cookie': sessionCookies,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Referer': FSE_CONFIG.baseUrl + '/home.jsp'
-        },
-        timeout: 15000,
-        validateStatus: function() { return true; }
-      }
-    );
+    const puppeteer = require('puppeteer');
+    browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
 
-    console.log('   Response: ' + response.status + ', Size: ' + response.data.length + ' bytes');
+    // Restore session by setting cookies
+    const cookiePairs = sessionCookies.split('; ').map(function(pair) {
+      const idx = pair.indexOf('=');
+      return { name: pair.slice(0, idx), value: pair.slice(idx + 1), domain: 'server.fseconomy.net' };
+    });
+    await page.setCookie(...cookiePairs);
 
-    if (response.data.length < 200) {
-      console.warn('⚠️  Response too small — likely a redirect');
-      return [];
-    }
+    await page.goto(FSE_CONFIG.baseUrl + '/aircraft.jsp?id=' + FSE_CONFIG.groupId, { waitUntil: 'networkidle2', timeout: 30000 });
 
-    if (response.data.includes('Log in') && !response.data.includes('Log out')) {
-      console.warn('⚠️  Got login page — session expired');
-      return [];
-    }
+    // Wait for DataTable to render
+    await page.waitForTimeout(2000);
 
-    const $ = cheerio.load(response.data);
+    const html = await page.content();
+    await browser.close();
+    browser = null;
+
+    const $ = cheerio.load(html);
     const aircraft = [];
 
-    console.log('📋 Parsing HTML — ' + $('table').length + ' table(s) found');
-
-    $('table').each(function(tableIndex, table) {
-      const rows = $(table).find('tr');
-      console.log('   Table ' + tableIndex + ': ' + rows.length + ' rows');
-
-      rows.each(function(rowIndex, row) {
-        const cols = $(row).find('td');
-        if (cols.length < 2) return;
-
-        const cellTexts = cols.map(function(i, el) { return $(el).text().trim(); }).get();
-        const firstCell = cellTexts[0];
-
-        if (firstCell && /^[A-Z][A-Z0-9\-]*$/.test(firstCell) && firstCell.length >= 3 && firstCell.length <= 8) {
-          const registration = firstCell;
-          const type = cellTexts[1] || 'Unknown';
-          const location = cellTexts[2] || cellTexts[1] || 'Unknown';
-          console.log('   ✈️  Found: ' + registration + ' (' + type + ') at ' + location);
-          aircraft.push({ registration: registration, type: type, location: location, status: 'available' });
-        }
-      });
+    $('table tr').each(function(rowIndex, row) {
+      const cols = $(row).find('td');
+      if (cols.length < 2) return;
+      const cellTexts = cols.map(function(i, el) { return $(el).text().trim(); }).get();
+      const firstCell = cellTexts[0];
+      if (firstCell && /^[A-Z][A-Z0-9\-]*$/.test(firstCell) && firstCell.length >= 3 && firstCell.length <= 10) {
+        const type     = cellTexts[1] || 'Unknown';
+        const location = cellTexts[2] || 'Unknown';
+        console.log('   ✈️  Found: ' + firstCell + ' (' + type + ') at ' + location);
+        aircraft.push({ registration: firstCell, type: type, location: location, status: 'available' });
+      }
     });
-
-    if (aircraft.length === 0) {
-      console.log('⚠️  No aircraft matched. Dumping table samples:');
-      $('table').each(function(ti, table) {
-        const sample = $(table).find('tr').slice(0, 2).map(function(ri, row) {
-          const cells = $(row).find('td').map(function(ci, el) { return $(el).text().trim().substring(0, 20); }).get();
-          return '  [' + cells.join(' | ') + ']';
-        }).get();
-        console.log('Table ' + ti + ':\n' + sample.join('\n'));
-      });
-    }
 
     console.log('✅ Fetched ' + aircraft.length + ' aircraft');
 
@@ -333,6 +308,7 @@ async function fetchData() {
 
     return aircraft;
   } catch (error) {
+    if (browser) try { await browser.close(); } catch(e) {}
     console.error('❌ Data fetch failed:', error.message);
     return [];
   }

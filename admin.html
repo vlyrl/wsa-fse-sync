@@ -302,7 +302,9 @@
     try {
       await remove(ref(db, `users/${editingUid}`));
       await remove(ref(db, `usersPublic/${editingUid}`));
-      await runTransaction(ref(db, 'pilotCount'), count => Math.max(0, (count || 1) - 1));
+      const remaining = await get(ref(db, 'usersPublic'));
+      const newCount = remaining.exists() ? Object.keys(remaining.val() || {}).length : 0;
+      await set(ref(db, 'pilotCount'), newCount);
       toast('Pilot deleted');
       closeModal();
       loadPilots();
@@ -584,7 +586,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 
       <div class="card-sub" style="margin-bottom:12px;">Sync Server</div>
       <p style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:14px;">
-        To trigger a data sync from FSEconomy, the sync server must be running locally on port 3000.
+        Triggers a live data sync from FSEconomy via the Railway sync server. Updates aircraft, jobs, flights, hours, and revenue.
       </p>
       <button class="btn btn-gold" onclick="triggerSync()">Trigger FSE Sync</button>
       <div id="sync-result" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);margin-top:10px;"></div>
