@@ -211,7 +211,7 @@
 
     if (!tbody) return;
     tbody.innerHTML = '';
-    rows.slice(0, 20).forEach(p => {
+    rows.forEach(p => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${p.date}</td>

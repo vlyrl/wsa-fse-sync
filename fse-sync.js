@@ -508,6 +508,40 @@ app.listen(PORT, function() {
 });
 
 
+// Download FSEconomy's own airport coordinate database (no auth needed)
+async function loadFSEAirportCoords() {
+  try {
+    console.log('📍 Loading FSE airport database...');
+    const res = await axios.get(
+      'https://server.fseconomy.net/static/library/icaodata.csv',
+      { timeout: 20000, responseType: 'text' }
+    );
+    const lines = String(res.data).split('\n');
+    const coords = {};
+    let parsed = 0;
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) continue;
+      const parts = line.split(',');
+      if (parts.length < 3) continue;
+      const icao = parts[0].trim().toUpperCase();
+      if (!icao || !/^[A-Z0-9]{2,5}$/.test(icao)) continue;
+      // CSV format: icao,lat,lon[,name,...]
+      let lat = parseFloat(parts[1]);
+      let lon = parseFloat(parts[2]);
+      if (isNaN(lat) || isNaN(lon)) continue;
+      if (Math.abs(lat) > 90 || Math.abs(lon) > 180) continue;
+      coords[icao] = [lat, lon];
+      parsed++;
+    }
+    console.log('✅ Loaded ' + parsed + ' FSE airport coords');
+    return coords;
+  } catch (err) {
+    console.warn('⚠️  FSE airport CSV unavailable:', err.message);
+    return {};
+  }
+}
+
 // FETCH FLIGHT LOG from log.jsp — extracts individual flights and saves to pireps
 async function fetchLog() {
   try {
@@ -609,30 +643,17 @@ async function fetchLog() {
       });
     });
 
-    // ── Resolve airport coordinates ───────────────────────────
-    // Build merged coords: hardcoded table + API lookup for unknowns
-    const coordsMap = Object.assign({}, AIRPORT_COORDS);
-    const unknownCodes = [...new Set(
+    // ── Resolve airport coordinates from FSE airport database ─
+    const fseCoords = await loadFSEAirportCoords();
+    const coordsMap = Object.assign({}, AIRPORT_COORDS, fseCoords);
+
+    const stillMissing = [...new Set(
       pireps.flatMap(p => [p.dep, p.arr]).filter(c => c && c !== '???' && !coordsMap[c])
     )];
-    if (unknownCodes.length) {
-      try {
-        const res = await axios.get(
-          'https://api.aviationapi.com/v1/airports?apt=' + unknownCodes.join(','),
-          { timeout: 8000 }
-        );
-        Object.entries(res.data || {}).forEach(([code, entries]) => {
-          const e = Array.isArray(entries) ? entries[0] : entries;
-          if (!e) return;
-          const lat = parseFloat(e.latitude || e.lat || 0);
-          const lon = parseFloat(e.longitude || e.lon || e.long || 0);
-          if (lat && lon) coordsMap[code] = [lat, lon];
-        });
-        console.log('✅ Airport coords resolved for: ' + unknownCodes.join(', '));
-      } catch (coordErr) {
-        console.warn('⚠️  Airport coord lookup failed:', coordErr.message);
-      }
+    if (stillMissing.length) {
+      console.warn('⚠️  No coords found for: ' + stillMissing.join(', '));
     }
+
     // Tag each pirep with its coordinates
     pireps.forEach(p => {
       const dc = coordsMap[p.dep];
