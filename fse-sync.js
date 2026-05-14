@@ -544,43 +544,91 @@ async function loadFSEAirportCoords() {
   }
 }
 
-// FETCH FLIGHT LOG from log.jsp using Puppeteer so DataTables fully renders
+// FETCH FLIGHT LOG — uses logviewer.jsp (the group route map page) via Puppeteer
 async function fetchLog() {
   let browser;
   try {
     if (!db) initFirebase();
-    console.log('📡 Fetching flight log (Puppeteer)...');
+    console.log('📡 Fetching flight log from logviewer...');
 
     const puppeteer = require('puppeteer');
     browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
 
-    // Restore the authenticated session
+    // Capture any JSON XHR responses — logviewer may load route data via Ajax
+    const capturedJSON = [];
+    page.on('response', async function(res) {
+      try {
+        const ct = res.headers()['content-type'] || '';
+        if (ct.includes('json')) {
+          const data = await res.json();
+          capturedJSON.push({ url: res.url(), data: data });
+        }
+      } catch(e) {}
+    });
+
     const cookiePairs = sessionCookies.split('; ').map(function(pair) {
       const idx = pair.indexOf('=');
       return { name: pair.slice(0, idx), value: pair.slice(idx + 1), domain: 'server.fseconomy.net' };
     });
     await page.setCookie(...cookiePairs);
 
-    await page.goto(FSE_CONFIG.baseUrl + '/log.jsp?groupid=' + FSE_CONFIG.groupId, { waitUntil: 'networkidle2', timeout: 30000 });
+    // Navigate to the logviewer (group route map)
+    await page.goto('https://server.fseconomy.net/logviewer.jsp?group=' + FSE_CONFIG.groupId, {
+      waitUntil: 'networkidle2', timeout: 30000
+    });
+    await new Promise(r => setTimeout(r, 3000));
 
-    // Show all entries so DataTables renders everything
-    try {
-      await page.select('select[name*="DataTables_Table"], select[name*="length"]', '-1');
-      await new Promise(r => setTimeout(r, 2000));
-    } catch (e) {
-      await new Promise(r => setTimeout(r, 2000));
-    }
+    // Extract window variables and embedded script data that contain flight/route info
+    const pageData = await page.evaluate(function() {
+      var result = { windowVars: [], scripts: [], tableHTML: '' };
+
+      // Scan all window variables for arrays of objects that look like flight data
+      try {
+        Object.keys(window).forEach(function(key) {
+          try {
+            var val = window[key];
+            if (Array.isArray(val) && val.length > 0 && val[0] && typeof val[0] === 'object') {
+              var sample = JSON.stringify(val[0]).toLowerCase();
+              if (sample.includes('lat') || sample.includes('from') || sample.includes('icao') || sample.includes('dep')) {
+                result.windowVars.push({ name: key, length: val.length, sample: val[0] });
+              }
+            }
+          } catch(e) {}
+        });
+      } catch(e) {}
+
+      // Scan inline scripts for embedded coordinate/route data
+      try {
+        Array.from(document.querySelectorAll('script')).forEach(function(s) {
+          var t = s.textContent || '';
+          if (t.length > 50 && (t.includes('lat') || t.includes('Lat')) && (t.includes('lng') || t.includes('lon') || t.includes('Lng'))) {
+            result.scripts.push(t.substring(0, 3000));
+          }
+        });
+      } catch(e) {}
+
+      // Grab the full table HTML if one exists
+      try {
+        var tbl = document.querySelector('table');
+        if (tbl) result.tableHTML = tbl.outerHTML.substring(0, 5000);
+      } catch(e) {}
+
+      return result;
+    });
+
+    console.log('📊 Window vars with flight-like data:', JSON.stringify(pageData.windowVars).substring(0, 1000));
+    console.log('📊 Inline scripts with coords (' + pageData.scripts.length + '):', JSON.stringify(pageData.scripts[0] || '').substring(0, 500));
+    console.log('📊 JSON XHR responses:', capturedJSON.map(function(r) { return r.url; }).join(', ') || 'none');
+    console.log('📊 Table HTML sample:', pageData.tableHTML.substring(0, 300));
 
     const html = await page.content();
     await browser.close();
     browser = null;
 
-    console.log('   Log page size: ' + html.length + ' bytes');
-
     if (html.includes('Log in') && !html.includes('Log out')) {
-      console.warn('⚠️  Log page returned login screen — session expired');
+      console.warn('⚠️  Logviewer returned login screen — session expired');
       return { flights: 0, hoursFlown: 0 };
     }
 
