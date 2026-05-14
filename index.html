@@ -225,7 +225,7 @@
           <td class="log-acft">${p.aircraft}</td>
           <td>${p.pilot}</td>
           <td>${Number(p.blockTime).toFixed(1)} hrs</td>
-          <td><span class="pirep-badge">Completed</span></td>
+          <td style="color:${Number(p.earnings||0)<0?'#c06060':'#6db86d'}">${Number(p.earnings||0)<0?'-':''}$${Math.abs(Number(p.earnings||0)).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
         `;
         tbody.appendChild(tr);
       });
@@ -573,8 +573,9 @@
         const pilot = f.pilot    || '—';
         const hrs   = Number(f.blockTime||0).toFixed(1);
         const raw   = Number(f.earnings||0);
-        const earn  = (raw >= 0 ? '+' : '') + '$' + Math.abs(raw).toLocaleString('en-US',{maximumFractionDigits:0});
-        return `<div class="rt-row"><span class="rt-date">${date}</span><span class="rt-acft">${acft}</span><span class="rt-pilot">${pilot}</span><span class="rt-hrs">${hrs} hrs</span><span class="rt-earn">${earn}</span></div>`;
+        const earn  = (raw < 0 ? '-' : '') + '$' + Math.abs(raw).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+        const earnColor = raw < 0 ? '#c06060' : '#6db86d';
+        return `<div class="rt-row"><span class="rt-date">${date}</span><span class="rt-acft">${acft}</span><span class="rt-pilot">${pilot}</span><span class="rt-hrs">${hrs} hrs</span><span class="rt-earn" style="color:${earnColor}">${earn}</span></div>`;
       }).join('');
 
       const html = `<div class="rt-tip"><div class="rt-header">${dep} &rarr; ${arr}</div>${flightRows}</div>`;
@@ -1133,7 +1134,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
     <table class="log-table">
       <thead>
         <tr>
-          <th>Date</th><th>Route</th><th>Aircraft</th><th>Pilot</th><th>Block Time</th><th>Status</th>
+          <th>Date</th><th>Route</th><th>Aircraft</th><th>Pilot</th><th>Block Time</th><th>Earnings</th>
         </tr>
       </thead>
       <tbody id="log-tbody">
