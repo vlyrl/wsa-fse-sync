@@ -97,7 +97,7 @@
           flightEl.innerHTML = myFlights.map(p => `
             <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);font-family:'Barlow Condensed',sans-serif;font-size:13px;">
               <div style="color:var(--muted);min-width:110px;">${p.date}</div>
-              <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:.05em;">${p.dep} â†’ ${p.arr}</div>
+              <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:.05em;">${p.dep} &rarr; ${p.arr}</div>
               <div style="color:var(--gold);">${p.aircraft}</div>
               <div style="color:var(--muted);">${Number(p.blockTime).toFixed(1)} hrs</div>
               ${p.earnings ? `<div style="color:#81c784;">$${Number(p.earnings).toLocaleString()}</div>` : ''}
