@@ -533,48 +533,62 @@
     }
   });
 
-  // Draw routes onto the map once Firebase delivers pirep data
+  // Draw routes onto the map — one polyline per unique route, tooltip on hover
   function drawRoutes(rows) {
     if (!leafletMap) { pendingRouteRows = rows; return; }
 
-    // Remove any previously drawn route/marker layers
     leafletMap.eachLayer(l => { if (!(l instanceof L.TileLayer)) leafletMap.removeLayer(l); });
 
-    const debugEl = document.getElementById('map-debug');
+    if (!rows.length) return;
 
-    if (!rows.length) {
-      if (debugEl) debugEl.textContent = 'Firebase: 0 pireps';
-      return;
-    }
-
-    const missing = new Set();
-    const routesSeen = new Set();
-    const usedAirports = {};
-    let routeCount = 0;
-    const debugRows = [];
+    const missing     = new Set();
+    const routeFlights = {};
+    const routeCoords  = {};
 
     rows.forEach(p => {
       const dep = (p.dep||'').toUpperCase().trim();
       const arr = (p.arr||'').toUpperCase().trim();
-      const dc = (p.depLat && p.depLon) ? [p.depLat, p.depLon] : AIRPORT_COORDS[dep];
-      const ac = (p.arrLat && p.arrLon) ? [p.arrLat, p.arrLon] : AIRPORT_COORDS[arr];
-      debugRows.push(dep + '→' + arr + (dc&&ac?' ✓':' ✗'));
+      const dc  = (p.depLat && p.depLon) ? [p.depLat, p.depLon] : AIRPORT_COORDS[dep];
+      const ac  = (p.arrLat && p.arrLon) ? [p.arrLat, p.arrLon] : AIRPORT_COORDS[arr];
       if (!dep || !arr || dep === arr) return;
-      // Prefer coords stored by the sync server; fall back to local table
       if (!dc) missing.add(dep);
       if (!ac) missing.add(arr);
       if (!dc || !ac) return;
       const key = [dep,arr].sort().join('-');
-      if (!routesSeen.has(key)) {
-        routesSeen.add(key);
-        routeCount++;
-        L.polyline([dc,ac],{color:'#c8860a',weight:1.5,opacity:0.6}).addTo(leafletMap);
-      }
+      if (!routeFlights[key]) { routeFlights[key] = []; routeCoords[key] = [dc, ac]; }
+      routeFlights[key].push({ dep, arr, ...p });
+    });
+
+    let routeCount = 0;
+    const usedAirports = {};
+
+    Object.entries(routeFlights).forEach(([key, flights]) => {
+      const [dc, ac] = routeCoords[key];
+      const dep = flights[0].dep;
+      const arr = flights[0].arr;
+
+      const flightRows = flights.map(f => {
+        const date  = (f.date||'').replace('T',' ').slice(0,16);
+        const acft  = f.aircraft || '—';
+        const pilot = f.pilot    || '—';
+        const hrs   = Number(f.blockTime||0).toFixed(1);
+        const raw   = Number(f.earnings||0);
+        const earn  = (raw >= 0 ? '+' : '') + '$' + Math.abs(raw).toLocaleString('en-US',{maximumFractionDigits:0});
+        return `<div class="rt-row"><span class="rt-date">${date}</span><span class="rt-acft">${acft}</span><span class="rt-pilot">${pilot}</span><span class="rt-hrs">${hrs} hrs</span><span class="rt-earn">${earn}</span></div>`;
+      }).join('');
+
+      const html = `<div class="rt-tip"><div class="rt-header">${dep} &rarr; ${arr}</div>${flightRows}</div>`;
+
+      const line = L.polyline([dc, ac], { color:'#c8860a', weight:2, opacity:0.65 });
+      line.bindTooltip(html, { sticky:true, opacity:1, className:'route-tip' });
+      line.on('mouseover', function() { this.setStyle({ weight:4, opacity:1, color:'#f0a830' }); });
+      line.on('mouseout',  function() { this.setStyle({ weight:2, opacity:0.65, color:'#c8860a' }); });
+      line.addTo(leafletMap);
+
+      routeCount++;
       usedAirports[dep] = dc;
       usedAirports[arr] = ac;
     });
-
-    if (debugEl) debugEl.textContent = 'Firebase: ' + rows.length + ' pireps — ' + debugRows.join(', ');
 
     const countEl = document.getElementById('map-route-count');
     if (countEl) countEl.textContent = String(routeCount);
@@ -854,6 +868,18 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
 .leaflet-container { font-family:'Barlow Condensed',sans-serif !important; background:#050d1a !important; }
 .map-tip.leaflet-tooltip { background:rgba(8,8,8,0.92) !important; border:1px solid #c8860a !important; border-radius:0 !important; color:#c8860a !important; font-family:'Bebas Neue',sans-serif !important; font-size:14px !important; letter-spacing:.1em !important; padding:4px 10px !important; white-space:nowrap !important; box-shadow:none !important; }
 .map-tip.leaflet-tooltip::before { display:none !important; }
+.route-tip.leaflet-tooltip { background:rgba(8,12,20,0.96) !important; border:1px solid #c8860a !important; border-radius:2px !important; padding:10px 14px !important; box-shadow:0 4px 20px rgba(0,0,0,0.7) !important; pointer-events:none !important; min-width:240px !important; }
+.route-tip.leaflet-tooltip::before { display:none !important; }
+.rt-tip { font-family:'Barlow Condensed',sans-serif; }
+.rt-header { font-family:'Bebas Neue',sans-serif; font-size:16px; letter-spacing:.12em; color:#f0a830; border-bottom:1px solid rgba(200,134,10,0.3); padding-bottom:6px; margin-bottom:8px; }
+.rt-row { display:grid; grid-template-columns:1fr 1fr; gap:2px 12px; margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.05); }
+.rt-row:last-child { margin-bottom:0; padding-bottom:0; border-bottom:none; }
+.rt-date { grid-column:1/-1; font-size:11px; color:#888; letter-spacing:.04em; }
+.rt-acft { font-size:12px; color:#ccc; font-weight:600; }
+.rt-pilot { font-size:12px; color:#aaa; }
+.rt-hrs { font-size:12px; color:#c8860a; }
+.rt-earn { font-size:12px; color:#6db86d; }
+.rt-earn[data-neg] { color:#c06060; }
 .leaflet-control-attribution { background:rgba(5,5,5,0.75) !important; color:#444 !important; font-size:9px !important; }
 .leaflet-control-attribution a { color:#666 !important; }
 .leaflet-control-zoom a { background:var(--surface) !important; color:var(--gold) !important; border-color:var(--border) !important; }
@@ -1025,7 +1051,6 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
     <div class="map-legend">
       <span id="map-route-count">&mdash;</span> unique routes plotted &middot; data from flight log<span id="map-missing"></span>
     </div>
-    <div id="map-debug" style="margin-top:6px;font-family:monospace;font-size:11px;color:#666;"></div>
   </div>
 </div>
 
