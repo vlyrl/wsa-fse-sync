@@ -137,7 +137,7 @@
               +   '<span class="live-dot"></span>'
               +   '<span class="live-route">' + from + ' → ' + dest + '</span>'
               + '</div>'
-              + (pilot ? '<div class="live-meta">Pilot: <strong>' + pilot + '</strong></div>' : '')
+              + '<div class="live-meta">Operated by <strong>' + (pilot || 'Unknown') + '</strong></div>'
               + (cargo ? '<div class="live-meta">Cargo: ' + cargo + '</div>' : '')
               + (nm    ? '<div class="live-meta">' + nm + ' NM</div>' : '')
               + '</div>';
