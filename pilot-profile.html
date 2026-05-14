@@ -97,7 +97,7 @@
           flightEl.innerHTML = myFlights.map(p => `
             <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);font-family:'Barlow Condensed',sans-serif;font-size:13px;">
               <div style="color:var(--muted);min-width:110px;">${p.date}</div>
-              <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:.05em;">${p.dep} â†’ ${p.arr}</div>
+              <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:.05em;">${p.dep} &rarr; ${p.arr}</div>
               <div style="color:var(--gold);">${p.aircraft}</div>
               <div style="color:var(--muted);">${Number(p.blockTime).toFixed(1)} hrs</div>
               ${p.earnings ? `<div style="color:#81c784;">$${Number(p.earnings).toLocaleString()}</div>` : ''}
@@ -166,7 +166,7 @@ nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba
   .container { margin-top: 96px; padding: 0 16px; }
   .card { padding: 20px 16px; }
   .stat-row { gap: 20px; }
-  /* Flight history rows — stack on small screens */
+  /* Flight history rows &mdash; stack on small screens */
   #pilot-flights > div { flex-wrap: wrap; gap: 6px; }
   #pilot-flights > div > div { min-width: unset; }
   .toast { bottom: 20px; right: 20px; left: 20px; text-align: center; }
@@ -206,7 +206,7 @@ nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba
       </div>
 
       <div class="base-row" id="base-row">
-        <span style="color:var(--gold);">âœ¦</span>
+        <span style="color:var(--gold);">&#10022;</span>
         <span>Home Base: <strong id="pilot-base"></strong></span>
       </div>
 
