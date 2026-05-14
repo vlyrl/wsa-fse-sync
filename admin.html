@@ -57,10 +57,15 @@
   let allPilots = [];
 
   async function loadPilots() {
+    const tbody = document.getElementById('pilot-tbody');
+    tbody.innerHTML = '<tr><td colspan="7" style="color:var(--muted);">Connecting to database…</td></tr>';
     try {
-      const snap = await get(ref(db, 'users'));
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Firebase timed out after 10s')), 10000)
+      );
+      const snap = await Promise.race([get(ref(db, 'users')), timeoutPromise]);
       if (!snap.exists()) {
-        document.getElementById('pilot-tbody').innerHTML = '<tr><td colspan="7" style="color:var(--muted);">No pilots found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="color:var(--muted);">No pilots found in database.</td></tr>';
         return;
       }
       allPilots = Object.entries(snap.val()).map(([uid, d]) => ({ uid, ...d }));
@@ -70,7 +75,7 @@
       await loadCertifications();
     } catch (e) {
       console.error('loadPilots error:', e);
-      document.getElementById('pilot-tbody').innerHTML = `<tr><td colspan="7" style="color:#c0392b;">Error loading pilots: ${e.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="color:#c0392b;">Error: ${e.message}</td></tr>`;
       toast('Could not load pilots: ' + e.message, true);
     }
   }
