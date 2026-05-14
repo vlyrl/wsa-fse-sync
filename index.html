@@ -529,23 +529,27 @@
     // Remove any previously drawn route/marker layers
     leafletMap.eachLayer(l => { if (!(l instanceof L.TileLayer)) leafletMap.removeLayer(l); });
 
-    if (!rows.length) { console.log('[WSA Map] No pirep rows received'); return; }
+    const debugEl = document.getElementById('map-debug');
 
-    console.log('[WSA Map] Total pireps:', rows.length);
-    console.log('[WSA Map] Sample row:', JSON.stringify(rows[0]));
+    if (!rows.length) {
+      if (debugEl) debugEl.textContent = 'Firebase: 0 pireps';
+      return;
+    }
+
     const missing = new Set();
-
     const routesSeen = new Set();
     const usedAirports = {};
     let routeCount = 0;
+    const debugRows = [];
 
     rows.forEach(p => {
       const dep = (p.dep||'').toUpperCase().trim();
       const arr = (p.arr||'').toUpperCase().trim();
-      if (!dep || !arr || dep === arr) return;
-      // Prefer coords stored by the sync server; fall back to local table
       const dc = (p.depLat && p.depLon) ? [p.depLat, p.depLon] : AIRPORT_COORDS[dep];
       const ac = (p.arrLat && p.arrLon) ? [p.arrLat, p.arrLon] : AIRPORT_COORDS[arr];
+      debugRows.push(dep + '→' + arr + (dc&&ac?' ✓':' ✗'));
+      if (!dep || !arr || dep === arr) return;
+      // Prefer coords stored by the sync server; fall back to local table
       if (!dc) missing.add(dep);
       if (!ac) missing.add(arr);
       if (!dc || !ac) return;
@@ -558,6 +562,8 @@
       usedAirports[dep] = dc;
       usedAirports[arr] = ac;
     });
+
+    if (debugEl) debugEl.textContent = 'Firebase: ' + rows.length + ' pireps — ' + debugRows.join(', ');
 
     const countEl = document.getElementById('map-route-count');
     if (countEl) countEl.textContent = String(routeCount);
@@ -1008,6 +1014,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
     <div class="map-legend">
       <span id="map-route-count">&mdash;</span> unique routes plotted &middot; data from flight log<span id="map-missing"></span>
     </div>
+    <div id="map-debug" style="margin-top:6px;font-family:monospace;font-size:11px;color:#666;"></div>
   </div>
 </div>
 
