@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WSA â€” Admin Panel</title>
+<title>WSA — Admin Panel</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
 
 <script type="module">
@@ -108,8 +108,8 @@
 
     const notCertified = allPilots.filter(p => !certifiedUids.has(p.uid));
     document.getElementById('assign-pilot-select').innerHTML =
-      '<option value="">â€” Select a pilot â€”</option>' +
-      notCertified.map(p => `<option value="${p.uid}">${p.firstName || ''} ${p.lastName || ''}</option>`).join('');
+      '<option value=””>— Select a pilot —</option>' +
+      notCertified.map(p => `<option value=”${p.uid}”>${p.firstName || ''} ${p.lastName || ''}</option>`).join('');
 
     const certified = allPilots.filter(p => certifiedUids.has(p.uid));
     document.getElementById('assign-certified-list').innerHTML = certified.length
@@ -188,7 +188,7 @@
       <tr>
         <td>${p.firstName || ''} ${p.lastName || ''}</td>
         <td>${p.email || ''}</td>
-        <td>${p.location || 'â€”'}</td>
+        <td>${p.location || '—'}</td>
         <td><span style="color:${rank.color};font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.2em;text-transform:uppercase;">${rank.title}</span></td>
         <td>${Number(p.totalHours || 0).toFixed(1)} hrs</td>
         <td><span class="badge ${p.admin ? 'badge-admin' : 'badge-pilot'}">${p.admin ? 'Admin' : 'Pilot'}</span></td>
@@ -199,8 +199,8 @@
 
   function populateEmailDropdown(pilots) {
     const sel = document.getElementById('email-pilot-select');
-    sel.innerHTML = '<option value="">â€” Select a pilot â€”</option>' +
-      pilots.map(p => `<option value="${p.uid}">${p.firstName || ''} ${p.lastName || ''} (${p.email || ''})</option>`).join('');
+    sel.innerHTML = '<option value=””>— Select a pilot —</option>' +
+      pilots.map(p => `<option value=”${p.uid}”>${p.firstName || ''} ${p.lastName || ''} (${p.email || ''})</option>`).join('');
   }
 
   // â”€â”€ Search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -248,7 +248,7 @@
       ? certEntries.map(([id, cert]) => `
           <div class="checkbox-row">
             <input type="checkbox" id="cert-cb-${id}" ${pilotCerts[id] ? 'checked' : ''}>
-            <label for="cert-cb-${id}">${cert.name}${cert.description ? ' â€” ' + cert.description : ''}</label>
+            <label for="cert-cb-${id}">${cert.name}${cert.description ? ' — ' + cert.description : ''}</label>
           </div>`).join('')
       : '<div style="color:var(--muted);font-size:12px;font-family:\'Barlow Condensed\',sans-serif;letter-spacing:.1em;">No certifications available. Create some in the Certifications card first.</div>';
     document.getElementById('modal').classList.add('open');
@@ -516,7 +516,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   <a class="nav-logo" href="index.html">WESTERN <span>SKIES</span> AIR</a>
   <div class="nav-right">
     <span class="nav-badge">Admin</span>
-    <span class="nav-user">Signed in as <strong id="admin-name">â€”</strong></span>
+    <span class="nav-user">Signed in as <strong id=”admin-name”>—</strong></span>
     <button class="nav-btn" onclick="doSignOut()">Sign Out</button>
   </div>
 </nav>
@@ -531,7 +531,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   <!-- STAT STRIP -->
   <div class="stat-strip">
     <div class="stat-box">
-      <div class="stat-box-num" id="pilot-count">â€”</div>
+      <div class=”stat-box-num” id=”pilot-count”>—</div>
       <div class="stat-box-label">Registered Pilots</div>
     </div>
     <div class="stat-box">
@@ -555,7 +555,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
       <div class="field">
         <label>Select Pilot (optional)</label>
         <select id="email-pilot-select" onchange="onEmailPilotChange()">
-          <option value="">â€” Select a pilot â€”</option>
+          <option value="">— Select a pilot —</option>
         </select>
       </div>
       <div class="field">
@@ -645,7 +645,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 <div style="max-width:1200px;margin:0 auto 24px;padding:0 32px;">
   <div class="card">
     <div class="card-title">Certifications</div>
-    <div class="card-sub">Create certification types â€” assign them to pilots via the Edit button</div>
+    <div class="card-sub">Create certification types — assign them to pilots via the Edit button</div>
     <div id="cert-list" style="margin-bottom:20px;"></div>
     <div class="divider"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;">
@@ -732,7 +732,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Assign to Pilot</div>
       <div style="display:flex;gap:10px;align-items:center;">
         <select id="assign-pilot-select" style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:14px;padding:10px 14px;outline:none;">
-          <option value="">â€” Select a pilot â€”</option>
+          <option value="">— Select a pilot —</option>
         </select>
         <button class="btn btn-gold" onclick="assignCertToPilot()">Assign</button>
       </div>
