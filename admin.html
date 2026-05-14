@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -23,7 +23,7 @@
     try {
       await auth.authStateReady();
     } catch (e) {
-      // authStateReady not available in this build — wait briefly
+      // authStateReady not available in this build &mdash; wait briefly
       await new Promise(r => setTimeout(r, 800));
     }
     const user = auth.currentUser;
@@ -33,7 +33,7 @@
     try {
       const snap = await get(ref(db, `users/${user.uid}`));
       data = snap.exists() ? snap.val() : {};
-    } catch (e) { /* permission or network — still try to load */ }
+    } catch (e) { /* permission or network &mdash; still try to load */ }
 
     const isAdmin = user.uid === ADMIN_UID || data.admin === true;
     if (!isAdmin) { window.location.href = 'index.html'; return; }
@@ -102,7 +102,7 @@
       return `<tr>
         <td>${name}</td>
         <td>${p.email || ''}</td>
-        <td>${p.location || '&mdash;'}</td>
+        <td>${p.location || '—'}</td>
         <td><span style="color:${rank.color};font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.2em;text-transform:uppercase;">${rank.title}</span></td>
         <td>${Number(p.totalHours || 0).toFixed(1)} hrs</td>
         <td><span class="badge ${p.admin ? 'badge-admin' : 'badge-pilot'}">${p.admin ? 'Admin' : 'Pilot'}</span></td>
@@ -390,7 +390,7 @@
       const res = await fetch('https://wsa-fse-sync-production.up.railway.app/sync', { method: 'POST' });
       const data = await res.json();
       result.textContent = data.success
-        ? 'Synced ' + (data.aircraftSynced || 0) + ' aircraft · ' + new Date().toLocaleTimeString()
+        ? 'Synced ' + (data.aircraftSynced || 0) + ' aircraft &middot; ' + new Date().toLocaleTimeString()
         : 'Error: ' + (data.error || 'Sync failed');
     } catch (e) { result.textContent = 'Sync server not reachable'; }
     btn.disabled = false; btn.textContent = 'Trigger FSE Sync';

@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Western Skies Air — Virtual Charter Airline</title>
+<title>Western Skies Air &mdash; Virtual Charter Airline</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
 
 <script type="module">
@@ -65,7 +65,7 @@
         } else {
           dot.className = 'status-dot idle';
           dot.style.cssText = 'background:#f0a830;box-shadow:0 0 6px #f0a830';
-          label.textContent = `In Transit — ${ac.location}`;
+          label.textContent = `In Transit u2014 ${ac.location}`;
           label.style.color = '#f0a830';
         }
         if (locEl) locEl.textContent = ac.location || '—';
@@ -136,7 +136,7 @@
             return '<div class="live-op-card">'
               + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">'
               +   '<span class="live-dot"></span>'
-              +   '<span class="live-route">' + from + ' → ' + dest + '</span>'
+              +   '<span class="live-route">' + from + ' &rarr; ' + dest + '</span>'
               + '</div>'
               + '<div class="live-meta">Operated by <strong>' + (pilot || 'Unknown') + '</strong></div>'
               + (cargo ? '<div class="live-meta">Cargo: ' + cargo + '</div>' : '')
@@ -169,7 +169,7 @@
         const expires  = job.expires  || '';
         const status   = job.status   || 'Open';
         const route = (from && dest)
-          ? escapeHTML(from) + ' → ' + escapeHTML(dest)
+          ? escapeHTML(from) + ' &rarr; ' + escapeHTML(dest)
           : escapeHTML(location || 'Route unavailable');
         const fields = [
           nm      ? '<div class="job-field"><span class="job-field-label">Distance</span><span class="job-field-val">' + escapeHTML(nm) + ' NM</span></div>' : '',
@@ -186,7 +186,7 @@
           +   '</div>'
           + '</div>'
           + '<div class="job-meta">'
-          +   (location ? escapeHTML(location) + ' · ' : '')
+          +   (location ? escapeHTML(location) + ' &middot; ' : '')
           +   '<span class="job-status-badge">' + escapeHTML(status) + '</span>'
           + '</div>'
           + '<div class="job-fields">' + (fields || '<span class="job-no-details">No additional details</span>') + '</div>'
@@ -212,7 +212,7 @@
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${p.date}</td>
-        <td><span class="log-icao">${p.dep}</span> → <span class="log-icao">${p.arr}</span></td>
+        <td><span class="log-icao">${p.dep}</span> &rarr; <span class="log-icao">${p.arr}</span></td>
         <td class="log-acft">${p.aircraft}</td>
         <td>${p.pilot}</td>
         <td>${Number(p.blockTime).toFixed(1)} hrs</td>
@@ -680,7 +680,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
   </svg>
   <div class="hero-content">
     <div class="hero-eyebrow">
-      FSEconomy Virtual Charter · Est. 2024
+      FSEconomy Virtual Charter &middot; Est. 2024
       <span class="live-badge"><span class="live-dot"></span>Live Data</span>
     </div>
     <div class="hero-title">WESTERN<br><span class="accent">SKIES</span><br><span class="outline">AIR</span></div>
@@ -691,10 +691,10 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
       <a class="btn-ghost" href="#fleet">View Fleet</a>
     </div>
     <div class="hero-stats">
-      <div><div class="stat-num" id="stat-hours">—</div><div class="stat-label">Total Hours Logged</div></div>
-      <div><div class="stat-num" id="stat-fleet">—</div><div class="stat-label">Aircraft in Service</div></div>
-      <div><div class="stat-num" id="stat-pilots">—</div><div class="stat-label">Pilots on Roster</div></div>
-      <div><div class="stat-num" id="stat-flights">—</div><div class="stat-label">Flights Logged</div></div>
+      <div><div class="stat-num" id="stat-hours">&mdash;</div><div class="stat-label">Total Hours Logged</div></div>
+      <div><div class="stat-num" id="stat-fleet">&mdash;</div><div class="stat-label">Aircraft in Service</div></div>
+      <div><div class="stat-num" id="stat-pilots">&mdash;</div><div class="stat-label">Pilots on Roster</div></div>
+      <div><div class="stat-num" id="stat-flights">&mdash;</div><div class="stat-label">Flights Logged</div></div>
     </div>
   </div>
 </section>
@@ -724,11 +724,11 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
           <div><div class="spec-label">Pax</div><div class="spec-val">9 passengers</div></div>
           <div><div class="spec-label">Range</div><div class="spec-val">1,070 nm</div></div>
           <div><div class="spec-label">Cruise</div><div class="spec-val">175 kts</div></div>
-          <div><div class="spec-label">Current Location</div><div class="spec-val status-location">—</div></div>
+          <div><div class="spec-label">Current Location</div><div class="spec-val status-location">&mdash;</div></div>
         </div>
         <div class="fleet-status">
           <div class="status-dot" style="background:#888;box-shadow:none;"></div>
-          <span class="status-label" style="font-family:'Barlow Condensed';font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#888;">Loading…</span>
+          <span class="status-label" style="font-family:'Barlow Condensed';font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#888;">Loading&hellip;</span>
         </div>
       </div>
 
@@ -741,11 +741,11 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
           <div><div class="spec-label">Pax</div><div class="spec-val">11 passengers</div></div>
           <div><div class="spec-label">Range</div><div class="spec-val">1,806 nm</div></div>
           <div><div class="spec-label">Cruise</div><div class="spec-val">312 kts</div></div>
-          <div><div class="spec-label">Current Location</div><div class="spec-val status-location">—</div></div>
+          <div><div class="spec-label">Current Location</div><div class="spec-val status-location">&mdash;</div></div>
         </div>
         <div class="fleet-status">
           <div class="status-dot" style="background:#888;box-shadow:none;"></div>
-          <span class="status-label" style="font-family:'Barlow Condensed';font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#888;">Loading…</span>
+          <span class="status-label" style="font-family:'Barlow Condensed';font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#888;">Loading&hellip;</span>
         </div>
       </div>
 
@@ -758,11 +758,11 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
           <div><div class="spec-label">Pax</div><div class="spec-val">10 passengers</div></div>
           <div><div class="spec-label">Range</div><div class="spec-val">2,165 nm</div></div>
           <div><div class="spec-label">Cruise</div><div class="spec-val">451 kts</div></div>
-          <div><div class="spec-label">Current Location</div><div class="spec-val status-location">—</div></div>
+          <div><div class="spec-label">Current Location</div><div class="spec-val status-location">&mdash;</div></div>
         </div>
         <div class="fleet-status">
           <div class="status-dot" style="background:#888;box-shadow:none;"></div>
-          <span class="status-label" style="font-family:'Barlow Condensed';font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#888;">Loading…</span>
+          <span class="status-label" style="font-family:'Barlow Condensed';font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#888;">Loading&hellip;</span>
         </div>
       </div>
     </div>
@@ -780,25 +780,25 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
         <div><div class="route-airport">KDAL</div><div class="route-city">Dallas Love Field, TX</div></div>
         <div class="route-line"><div class="route-dash"></div><svg width="22" height="14" viewBox="0 0 120 70" fill="none"><path d="M18 38 Q34 18 66 22 L116 12 L98 28 Q66 30 44 38 Z" fill="#c8860a"/><path d="M3 38 L22 32 L27 34 L8 43 Z" fill="#c8860a" opacity="0.7"/></svg><div class="route-dash-r"></div></div>
         <div><div class="route-airport">KHOU</div><div class="route-city">Houston Hobby, TX</div></div>
-        <div class="route-meta"><div class="route-aircraft">Citation CJ4</div><div class="route-dist">240 nm · ~55 min</div></div>
+        <div class="route-meta"><div class="route-aircraft">Citation CJ4</div><div class="route-dist">240 nm &middot; ~55 min</div></div>
       </div>
       <div class="route-item">
         <div><div class="route-airport">KABI</div><div class="route-city">Abilene Regional, TX</div></div>
         <div class="route-line"><div class="route-dash"></div><svg width="22" height="14" viewBox="0 0 120 70" fill="none"><path d="M25 42 Q38 28 60 32 L112 22 L95 36 Q70 38 50 44 Z" fill="#c8860a"/><path d="M5 42 L28 36 L33 38 L12 48 Z" fill="#c8860a" opacity="0.7"/></svg><div class="route-dash-r"></div></div>
         <div><div class="route-airport">KELP</div><div class="route-city">El Paso International, TX</div></div>
-        <div class="route-meta"><div class="route-aircraft">King Air 350</div><div class="route-dist">320 nm · ~1h 05m</div></div>
+        <div class="route-meta"><div class="route-aircraft">King Air 350</div><div class="route-dist">320 nm &middot; ~1h 05m</div></div>
       </div>
       <div class="route-item">
         <div><div class="route-airport">KOKC</div><div class="route-city">Will Rogers, Oklahoma City</div></div>
         <div class="route-line"><div class="route-dash"></div><svg width="22" height="14" viewBox="0 0 120 70" fill="none"><path d="M25 42 Q38 28 60 32 L112 22 L95 36 Q70 38 50 44 Z" fill="#c8860a"/><path d="M5 42 L28 36 L33 38 L12 48 Z" fill="#c8860a" opacity="0.7"/></svg><div class="route-dash-r"></div></div>
         <div><div class="route-airport">KSAT</div><div class="route-city">San Antonio Int'l, TX</div></div>
-        <div class="route-meta"><div class="route-aircraft">King Air 350</div><div class="route-dist">380 nm · ~1h 15m</div></div>
+        <div class="route-meta"><div class="route-aircraft">King Air 350</div><div class="route-dist">380 nm &middot; ~1h 15m</div></div>
       </div>
       <div class="route-item">
         <div><div class="route-airport">KDFW</div><div class="route-city">DFW International, TX</div></div>
         <div class="route-line"><div class="route-dash"></div><svg width="22" height="14" viewBox="0 0 120 70" fill="none"><path d="M18 38 Q34 18 66 22 L116 12 L98 28 Q66 30 44 38 Z" fill="#c8860a"/><path d="M3 38 L22 32 L27 34 L8 43 Z" fill="#c8860a" opacity="0.7"/></svg><div class="route-dash-r"></div></div>
         <div><div class="route-airport">KABQ</div><div class="route-city">Albuquerque Int'l, NM</div></div>
-        <div class="route-meta"><div class="route-aircraft">Citation CJ4</div><div class="route-dist">565 nm · ~1h 15m</div></div>
+        <div class="route-meta"><div class="route-aircraft">Citation CJ4</div><div class="route-dist">565 nm &middot; ~1h 15m</div></div>
       </div>
     </div>
   </div>
@@ -818,7 +818,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
   <div class="section-title">AVAILABLE <span>CHARTERS</span></div>
   <div class="section-sub">Live FSEconomy group assignments for the WSA team, updated when the sync server runs. <strong id="jobs-count">0</strong> jobs available.</div>
   <div class="job-grid" id="jobs-list">
-    <div class="job-card empty">Loading current jobs…</div>
+    <div class="job-card empty">Loading current jobs&hellip;</div>
   </div>
 </section>
 
@@ -863,7 +863,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
       </div>
       <div class="info-block">
         <div class="info-label">Questions?</div>
-        <div class="info-val">Discord: <strong style="color:var(--gold);">#operations</strong> channel. Active 0800–2200 CST.</div>
+        <div class="info-val">Discord: <strong style="color:var(--gold);">#operations</strong> channel. Active 0800&ndash;2200 CST.</div>
       </div>
     </div>
   </div>
@@ -886,7 +886,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
         </tr>
       </thead>
       <tbody id="log-tbody">
-        <tr><td colspan="6" style="color:var(--muted);text-align:center;padding:32px 0;">Connecting to live data…</td></tr>
+        <tr><td colspan="6" style="color:var(--muted);text-align:center;padding:32px 0;">Connecting to live data&hellip;</td></tr>
       </tbody>
     </table>
   </div>
@@ -899,17 +899,17 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
     <div class="section-title">ABOUT <span>WSA</span></div>
     <div class="about-grid">
       <div class="about-text">
-        <p>Western Skies Air is a <strong>Texas-based virtual charter airline</strong> operating within FSEconomy. We focus on realistic, immersive general aviation operations across the Southern Plains — cargo runs, passenger charters, and executive flights.</p>
+        <p>Western Skies Air is a <strong>Texas-based virtual charter airline</strong> operating within FSEconomy. We focus on realistic, immersive general aviation operations across the Southern Plains &mdash; cargo runs, passenger charters, and executive flights.</p>
         <p>We value <strong>authentic flying</strong>: real weather, real procedures, real ATC communication, and aircraft that make sense for the region. Every flight logged here updates our live stats instantly.</p>
-        <p>Open to all skill levels. New pilots welcome — we'll get you familiar with FSEconomy and our ops culture quickly.</p>
+        <p>Open to all skill levels. New pilots welcome &mdash; we'll get you familiar with FSEconomy and our ops culture quickly.</p>
       </div>
       <div class="about-card">
-        <div class="section-eyebrow" style="margin-bottom:28px;">By the Numbers — Live</div>
+        <div class="section-eyebrow" style="margin-bottom:28px;">By the Numbers &mdash; Live</div>
         <div class="badge-grid">
-          <div class="badge"><div class="badge-num" id="badge-hours">—</div><div class="badge-label">Hours Flown</div></div>
-          <div class="badge"><div class="badge-num" id="badge-flights">—</div><div class="badge-label">Flights Logged</div></div>
-          <div class="badge"><div class="badge-num" id="badge-revenue">—</div><div class="badge-label">FSE Revenue</div></div>
-          <div class="badge"><div class="badge-num" id="badge-pilots">—</div><div class="badge-label">Active Pilots</div></div>
+          <div class="badge"><div class="badge-num" id="badge-hours">&mdash;</div><div class="badge-label">Hours Flown</div></div>
+          <div class="badge"><div class="badge-num" id="badge-flights">&mdash;</div><div class="badge-label">Flights Logged</div></div>
+          <div class="badge"><div class="badge-num" id="badge-revenue">&mdash;</div><div class="badge-label">FSE Revenue</div></div>
+          <div class="badge"><div class="badge-num" id="badge-pilots">&mdash;</div><div class="badge-label">Active Pilots</div></div>
         </div>
         <div style="margin-top:28px;padding-top:24px;border-top:1px solid var(--border);">
           <div class="info-label">Primary Simulator Platforms</div>
@@ -941,10 +941,10 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
       <div>
         <div class="footer-col-title">Bases</div>
         <ul class="footer-links">
-          <li><a href="#">KABI — Abilene</a></li>
-          <li><a href="#">KDAL — Dallas Love</a></li>
-          <li><a href="#">KDFW — Fort Worth</a></li>
-          <li><a href="#">KSAT — San Antonio</a></li>
+          <li><a href="#">KABI &mdash; Abilene</a></li>
+          <li><a href="#">KDAL &mdash; Dallas Love</a></li>
+          <li><a href="#">KDFW &mdash; Fort Worth</a></li>
+          <li><a href="#">KSAT &mdash; San Antonio</a></li>
         </ul>
       </div>
       <div>
@@ -958,8 +958,8 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
       </div>
     </div>
     <div class="footer-bottom">
-      <div class="footer-copy">© 2024–2025 Western Skies Air · Virtual Operations · All rights reserved</div>
-      <div class="footer-fse">A FSEconomy Virtual Airline · For Simulation Purposes Only</div>
+      <div class="footer-copy">© 2024&ndash;2025 Western Skies Air &middot; Virtual Operations &middot; All rights reserved</div>
+      <div class="footer-fse">A FSEconomy Virtual Airline &middot; For Simulation Purposes Only</div>
     </div>
   </div>
 </footer>
@@ -994,7 +994,7 @@ const items=['Live Data Powered by Firebase','File Your PIREP Today','Texas & So
 const inner=document.getElementById('ticker-inner');
 [...items,...items].forEach((t,i)=>{
   const d=document.createElement('span');d.className='ticker-item';
-  d.innerHTML=t+(i<items.length*2-1?' <span style="opacity:0.35">✦</span> ':'');
+  d.innerHTML=t+(i<items.length*2-1?' <span style="opacity:0.35">&#10022;</span> ':'');
   inner.appendChild(d);
 });
 
