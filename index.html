@@ -499,9 +499,12 @@
     'KSFO':[37.6213,-122.379],'KSAN':[32.7336,-117.190],'KSLC':[40.7884,-111.978],
     'KDCA':[38.8521,-77.0377],'KBOS':[42.3656,-71.0096],'KSEA':[47.4502,-122.309],
     'KCOT':[28.4562,-99.2204],'7TE7':[26.3837,-98.3337],
+    'E29':[30.5857,-100.649],'KSOA':[30.5857,-100.649],
+    '35TX':[32.4845,-99.826],
   };
 
   let leafletMap = null;
+  let pendingRouteRows = null;
 
   // Create the map as soon as the DOM is ready — independent of Firebase data
   document.addEventListener('DOMContentLoaded', function() {
@@ -512,11 +515,16 @@
       attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
       maxZoom:19, subdomains:'abcd'
     }).addTo(leafletMap);
+    // Firebase may have delivered rows before the map was ready — draw them now
+    if (pendingRouteRows !== null) {
+      drawRoutes(pendingRouteRows);
+      pendingRouteRows = null;
+    }
   });
 
   // Draw routes onto the map once Firebase delivers pirep data
   function drawRoutes(rows) {
-    if (!leafletMap) return;
+    if (!leafletMap) { pendingRouteRows = rows; return; }
 
     // Remove any previously drawn route/marker layers
     leafletMap.eachLayer(l => { if (!(l instanceof L.TileLayer)) leafletMap.removeLayer(l); });

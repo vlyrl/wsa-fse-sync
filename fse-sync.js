@@ -35,9 +35,11 @@ const AIRPORT_COORDS = {
   KPHX:[33.4373,-112.008],KSFO:[37.6213,-122.379],KSAN:[32.7336,-117.190],
   KSLC:[40.7884,-111.978],KXNA:[36.2819,-94.3068],KOWP:[36.4451,-97.9984],
   KGCK:[37.9275,-100.724],KDCA:[38.8521,-77.0377],KSEA:[47.4502,-122.309],
-  // South Texas / La Salle County
+  // South / West Texas
   KCOT:[28.4562,-99.2204],
   '7TE7':[26.3837,-98.3337],
+  E29:[30.5857,-100.649], KSOA:[30.5857,-100.649],
+  '35TX':[32.4845,-99.826],
 };
 
 // Polyfill globals for Node.js 18 compatibility
