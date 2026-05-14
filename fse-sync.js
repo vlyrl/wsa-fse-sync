@@ -710,12 +710,24 @@ async function fetchLog() {
       });
 
       if (pireps.length) {
+        // Log every pirep we're about to write
+        pireps.forEach(function(p, i) {
+          console.log('   ✈️  flight-' + i + ': ' + p.dep + ' → ' + p.arr +
+            ' depLat=' + p.depLat + ' arrLat=' + p.arrLat);
+        });
         const pirepsObj = {};
         pireps.forEach(function(p, i) {
           pirepsObj['flight-' + i] = p;
         });
         await db.ref('pireps').set(pirepsObj);
-        console.log('✅ ' + pireps.length + ' flights saved to Firebase');
+        // Read back immediately to verify
+        const verify = await db.ref('pireps').once('value');
+        const writtenCount = verify.exists() ? Object.keys(verify.val()).length : 0;
+        console.log('✅ Firebase write verified: ' + writtenCount + ' pireps in DB (expected ' + pireps.length + ')');
+        if (writtenCount !== pireps.length) {
+          console.error('❌ MISMATCH — Firebase has ' + writtenCount + ' but we wrote ' + pireps.length);
+          console.error('   Firebase keys: ' + (verify.exists() ? Object.keys(verify.val()).join(', ') : 'none'));
+        }
       }
 
       // Auto-update each pilot's totalHours by matching fseUsername
