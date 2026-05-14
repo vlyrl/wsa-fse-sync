@@ -196,36 +196,45 @@
     });
   });
 
-  // ── Live PIREP log listener ─────────────────────────────────
-  onValue(ref(db, 'pireps'), snap => {
-    const tbody = document.getElementById('log-tbody');
-    const rows = [];
-    if (!snap.exists()) {
-      console.log('[WSA] Firebase pireps: empty');
-      if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:32px 0;">No flights logged yet.</td></tr>';
-      drawRoutes(rows);
-      return;
-    }
-    snap.forEach(child => rows.push({ key: child.key, ...child.val() }));
-    console.log('[WSA] Firebase pireps:', rows.length, 'records', rows.map(r => r.dep + '→' + r.arr));
-    rows.sort((a, b) => b.date.localeCompare(a.date));
-    drawRoutes(rows);
+  // ── PIREP loader — REST API (bypasses JS SDK snapshot caching) ─
+  const PIREPS_URL = 'https://wsair-f3c09-default-rtdb.firebaseio.com/pireps.json';
 
-    if (!tbody) return;
-    tbody.innerHTML = '';
-    rows.forEach(p => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${p.date}</td>
-        <td><span class="log-icao">${p.dep}</span> &rarr; <span class="log-icao">${p.arr}</span></td>
-        <td class="log-acft">${p.aircraft}</td>
-        <td>${p.pilot}</td>
-        <td>${Number(p.blockTime).toFixed(1)} hrs</td>
-        <td><span class="pirep-badge">Completed</span></td>
-      `;
-      tbody.appendChild(tr);
-    });
-  });
+  async function loadPireps() {
+    const tbody = document.getElementById('log-tbody');
+    try {
+      const res  = await fetch(PIREPS_URL);
+      const data = await res.json();
+      const rows = [];
+      if (data && typeof data === 'object') {
+        Object.entries(data).forEach(([key, val]) => rows.push({ key, ...val }));
+      }
+      rows.sort((a, b) => b.date.localeCompare(a.date));
+      drawRoutes(rows);
+
+      if (!tbody) return;
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:32px 0;">No flights logged yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = '';
+      rows.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${p.date}</td>
+          <td><span class="log-icao">${p.dep}</span> &rarr; <span class="log-icao">${p.arr}</span></td>
+          <td class="log-acft">${p.aircraft}</td>
+          <td>${p.pilot}</td>
+          <td>${Number(p.blockTime).toFixed(1)} hrs</td>
+          <td><span class="pirep-badge">Completed</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('[WSA] Failed to load pireps:', err);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', loadPireps);
 
   // ── FSEconomy Data Sync ────────────────────────────────────
   window.syncFSEData = async function() {
