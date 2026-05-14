@@ -1,105 +1,138 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WSA — Admin Panel</title>
+<title>WSA &mdash; Admin Panel</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getDatabase, ref, get, set, update, remove, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-
+  import { getDatabase, ref, get, set, update, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getAuth, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import { firebaseConfig } from './firebase-config.js';
 
   const app  = initializeApp(firebaseConfig);
   const db   = getDatabase(app);
   const auth = getAuth(app);
 
-  // â”€â”€ Auth guard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const ADMIN_UID = 'SVhJh3T9nfZT46hmaViKKxPhkbp1';
 
-  async function initWithUser(user) {
+  // ── Auth ─────────────────────────────────────────────────────
+  async function boot() {
+    try {
+      await auth.authStateReady();
+    } catch (e) {
+      // authStateReady not available in this build — wait briefly
+      await new Promise(r => setTimeout(r, 800));
+    }
+    const user = auth.currentUser;
     if (!user) { window.location.href = 'login.html'; return; }
+
+    let data = {};
     try {
       const snap = await get(ref(db, `users/${user.uid}`));
-      const data = snap.exists() ? snap.val() : {};
-      const isAdmin = user.uid === ADMIN_UID || data.admin === true;
-      if (!isAdmin) { window.location.href = 'index.html'; return; }
-      document.getElementById('admin-name').textContent = data.firstName || user.email;
-    } catch (e) {
-      console.error('Auth/init error:', e);
-      document.getElementById('admin-name').textContent = user.email;
-    }
+      data = snap.exists() ? snap.val() : {};
+    } catch (e) { /* permission or network — still try to load */ }
+
+    const isAdmin = user.uid === ADMIN_UID || data.admin === true;
+    if (!isAdmin) { window.location.href = 'index.html'; return; }
+
+    document.getElementById('admin-name').textContent = data.firstName || user.email;
     loadPilots();
   }
 
-  let authResolved = false;
-  onAuthStateChanged(auth, user => {
-    if (authResolved) return;
-    authResolved = true;
-    initWithUser(user);
-  });
+  boot();
 
-  // Fallback: if onAuthStateChanged doesn't fire within 5s, use currentUser
-  setTimeout(() => {
-    if (authResolved) return;
-    authResolved = true;
-    const user = auth.currentUser;
-    document.getElementById('pilot-tbody').innerHTML =
-      `<tr><td colspan="7" style="color:#f0a830;">Auth timed out — using currentUser: ${user ? user.email : 'null'}</td></tr>`;
-    initWithUser(user);
-  }, 5000);
-
-  window.doSignOut = async () => {
-    await signOut(auth);
-    window.location.href = 'index.html';
-  };
-
-  // â”€â”€ Toast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Toast ─────────────────────────────────────────────────────
   function toast(msg, err = false) {
     const t = document.getElementById('toast');
     t.textContent = msg;
     t.className = 'toast show ' + (err ? 'err' : 'ok');
-    clearTimeout(t._timer);
-    t._timer = setTimeout(() => t.classList.remove('show'), 3800);
+    clearTimeout(t._t);
+    t._t = setTimeout(() => t.classList.remove('show'), 3800);
   }
+  window.toast = toast;
 
-  // â”€â”€ Load all pilots â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Rank helper ───────────────────────────────────────────────
+  function getRank(hours, chiefPilot) {
+    if (chiefPilot) return { title: 'Chief Pilot', color: '#c8860a' };
+    const h = Number(hours) || 0;
+    if (h >= 500) return { title: 'Senior Captain',       color: '#e8c96a' };
+    if (h >= 250) return { title: 'Captain',              color: '#4fc3f7' };
+    if (h >= 100) return { title: 'Senior First Officer', color: '#81c784' };
+    if (h >= 25)  return { title: 'First Officer',        color: '#aaa' };
+    return               { title: 'Student Pilot',        color: '#666' };
+  }
+  window.getRank = getRank;
+
+  // ── Pilot loading ─────────────────────────────────────────────
   let allPilots = [];
 
   async function loadPilots() {
     const tbody = document.getElementById('pilot-tbody');
-    tbody.innerHTML = '<tr><td colspan="7" style="color:var(--muted);">Connecting to database…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="color:var(--muted);">Loading pilots&hellip;</td></tr>';
     try {
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Firebase timed out after 10s')), 10000)
-      );
-      const snap = await Promise.race([get(ref(db, 'users')), timeoutPromise]);
+      const snap = await get(ref(db, 'users'));
       if (!snap.exists()) {
-        tbody.innerHTML = '<tr><td colspan="7" style="color:var(--muted);">No pilots found in database.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="color:var(--muted);">No pilots in database.</td></tr>';
+        document.getElementById('pilot-count').textContent = '0';
         return;
       }
       allPilots = Object.entries(snap.val()).map(([uid, d]) => ({ uid, ...d }));
       renderPilotTable(allPilots);
       populateEmailDropdown(allPilots);
       document.getElementById('pilot-count').textContent = allPilots.length;
-      await loadCertifications();
+      loadCertifications();
     } catch (e) {
-      console.error('loadPilots error:', e);
-      tbody.innerHTML = `<tr><td colspan="7" style="color:#c0392b;">Error: ${e.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="color:#c0392b;">Error loading pilots: ${e.message}</td></tr>`;
       toast('Could not load pilots: ' + e.message, true);
     }
   }
 
-  // â”€â”€ Certifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  function renderPilotTable(pilots) {
+    const tbody = document.getElementById('pilot-tbody');
+    if (!pilots.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="color:var(--muted);">No pilots match search.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = pilots.map(p => {
+      const rank = getRank(p.totalHours, p.chiefPilot);
+      const name = [p.firstName, p.lastName].filter(Boolean).join(' ') || '(no name)';
+      return `<tr>
+        <td>${name}</td>
+        <td>${p.email || ''}</td>
+        <td>${p.location || '&mdash;'}</td>
+        <td><span style="color:${rank.color};font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.2em;text-transform:uppercase;">${rank.title}</span></td>
+        <td>${Number(p.totalHours || 0).toFixed(1)} hrs</td>
+        <td><span class="badge ${p.admin ? 'badge-admin' : 'badge-pilot'}">${p.admin ? 'Admin' : 'Pilot'}</span></td>
+        <td><button class="tbl-btn" onclick="openEdit('${p.uid}')">Edit</button></td>
+      </tr>`;
+    }).join('');
+  }
+
+  window.filterPilots = function() {
+    const q = document.getElementById('search').value.toLowerCase();
+    renderPilotTable(allPilots.filter(p =>
+      (p.firstName + ' ' + p.lastName + ' ' + p.email + ' ' + p.location).toLowerCase().includes(q)
+    ));
+  };
+
+  function populateEmailDropdown(pilots) {
+    const sel = document.getElementById('email-pilot-select');
+    sel.innerHTML = '<option value="">&mdash; Select a pilot &mdash;</option>' +
+      pilots.map(p => `<option value="${p.uid}">${[p.firstName, p.lastName].filter(Boolean).join(' ')} (${p.email || ''})</option>`).join('');
+  }
+
+  // ── Certifications ────────────────────────────────────────────
   let allCerts = {};
 
   async function loadCertifications() {
-    const snap = await get(ref(db, 'certifications'));
-    allCerts = snap.exists() ? snap.val() : {};
-    renderCertList();
+    try {
+      const snap = await get(ref(db, 'certifications'));
+      allCerts = snap.exists() ? snap.val() : {};
+      renderCertList();
+    } catch (e) { console.warn('Could not load certs:', e); }
   }
 
   function renderCertList() {
@@ -113,17 +146,42 @@
     list.innerHTML = entries.map(([id, cert]) => `
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);">
         <div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:.05em;color:var(--text);">${cert.name}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:.05em;">${cert.name}</div>
           ${cert.description ? `<div style="font-family:'Barlow',sans-serif;font-size:12px;color:var(--muted);margin-top:2px;">${cert.description}</div>` : ''}
         </div>
         <div style="display:flex;gap:8px;flex-shrink:0;">
-          <button class="btn btn-gold" style="padding:6px 14px;font-size:10px;" onclick="openAssignModal('${id}')">Assign</button>
+          <button class="btn btn-outline" style="padding:6px 14px;font-size:10px;" onclick="openAssignModal('${id}')">Assign</button>
           <button class="tbl-btn" onclick="deleteCert('${id}')">Delete</button>
         </div>
       </div>`).join('');
   }
 
-  // â”€â”€ Assign modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  window.createCert = async function() {
+    const name = document.getElementById('cert-name').value.trim();
+    const desc  = document.getElementById('cert-desc').value.trim();
+    if (!name) { toast('Enter a certification name', true); return; }
+    try {
+      const id = 'cert_' + Date.now();
+      await set(ref(db, `certifications/${id}`), { name, description: desc, createdAt: Date.now() });
+      allCerts[id] = { name, description: desc };
+      renderCertList();
+      document.getElementById('cert-name').value = '';
+      document.getElementById('cert-desc').value = '';
+      toast('Certification created');
+    } catch (e) { toast('Failed: ' + e.message, true); }
+  };
+
+  window.deleteCert = async function(id) {
+    if (!confirm('Delete this certification? It will be removed from all pilots.')) return;
+    try {
+      await remove(ref(db, `certifications/${id}`));
+      delete allCerts[id];
+      renderCertList();
+      toast('Certification deleted');
+    } catch (e) { toast('Failed: ' + e.message, true); }
+  };
+
+  // ── Assign modal ──────────────────────────────────────────────
   let assigningCertId = null;
 
   window.openAssignModal = async function(certId) {
@@ -131,28 +189,28 @@
     const cert = allCerts[certId];
     document.getElementById('assign-cert-name').textContent = cert.name;
     const descEl = document.getElementById('assign-cert-desc');
-    if (cert.description) { descEl.textContent = cert.description; descEl.style.display = 'block'; }
-    else { descEl.style.display = 'none'; }
+    descEl.textContent = cert.description || '';
+    descEl.style.display = cert.description ? 'block' : 'none';
 
     const certifiedUids = new Set();
-    for (const pilot of allPilots) {
-      const snap = await get(ref(db, `users/${pilot.uid}/certifications/${certId}`));
-      if (snap.exists()) certifiedUids.add(pilot.uid);
+    for (const p of allPilots) {
+      const s = await get(ref(db, `users/${p.uid}/certifications/${certId}`));
+      if (s.exists()) certifiedUids.add(p.uid);
     }
 
-    const notCertified = allPilots.filter(p => !certifiedUids.has(p.uid));
+    const notCert = allPilots.filter(p => !certifiedUids.has(p.uid));
     document.getElementById('assign-pilot-select').innerHTML =
-      '<option value=””>— Select a pilot —</option>' +
-      notCertified.map(p => `<option value=”${p.uid}”>${p.firstName || ''} ${p.lastName || ''}</option>`).join('');
+      '<option value="">&mdash; Select a pilot &mdash;</option>' +
+      notCert.map(p => `<option value="${p.uid}">${[p.firstName, p.lastName].filter(Boolean).join(' ')}</option>`).join('');
 
-    const certified = allPilots.filter(p => certifiedUids.has(p.uid));
-    document.getElementById('assign-certified-list').innerHTML = certified.length
-      ? certified.map(p => `
+    const cert2 = allPilots.filter(p => certifiedUids.has(p.uid));
+    document.getElementById('assign-certified-list').innerHTML = cert2.length
+      ? cert2.map(p => `
           <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;">${p.firstName || ''} ${p.lastName || ''}</div>
-            <button class="tbl-btn" onclick="revokeCertFromPilot('${p.uid}')">Revoke</button>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;">${[p.firstName, p.lastName].filter(Boolean).join(' ')}</div>
+            <button class="tbl-btn" onclick="revokeCert('${p.uid}')">Revoke</button>
           </div>`).join('')
-      : '<div style="color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;font-size:13px;letter-spacing:.1em;">No pilots certified yet.</div>';
+      : '<div style="color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;font-size:13px;">No pilots certified yet.</div>';
 
     document.getElementById('assign-modal').classList.add('open');
   };
@@ -162,130 +220,61 @@
     assigningCertId = null;
   };
 
-  window.assignCertToPilot = async function() {
+  window.assignCert = async function() {
     const uid = document.getElementById('assign-pilot-select').value;
     if (!uid) { toast('Select a pilot first', true); return; }
-    if (!assigningCertId) return;
     try {
       await set(ref(db, `users/${uid}/certifications/${assigningCertId}`), { earnedAt: Date.now() });
       await set(ref(db, `usersPublic/${uid}/certifications/${assigningCertId}`), { earnedAt: Date.now() });
       toast('Certification assigned');
-      await openAssignModal(assigningCertId);
+      openAssignModal(assigningCertId);
     } catch (e) { toast('Failed: ' + e.message, true); }
   };
 
-  window.revokeCertFromPilot = async function(uid) {
-    if (!assigningCertId) return;
-    if (!confirm('Revoke this certification from this pilot?')) return;
+  window.revokeCert = async function(uid) {
+    if (!assigningCertId || !confirm('Revoke this certification?')) return;
     try {
       await remove(ref(db, `users/${uid}/certifications/${assigningCertId}`));
       await remove(ref(db, `usersPublic/${uid}/certifications/${assigningCertId}`));
       toast('Certification revoked');
-      await openAssignModal(assigningCertId);
+      openAssignModal(assigningCertId);
     } catch (e) { toast('Failed: ' + e.message, true); }
   };
 
-  window.createCert = async function() {
-    const name = document.getElementById('cert-name').value.trim();
-    const description = document.getElementById('cert-desc').value.trim();
-    if (!name) { toast('Enter a certification name', true); return; }
-    try {
-      const certId = 'cert_' + Date.now();
-      await set(ref(db, `certifications/${certId}`), { name, description, createdAt: Date.now() });
-      allCerts[certId] = { name, description, createdAt: Date.now() };
-      renderCertList();
-      document.getElementById('cert-name').value = '';
-      document.getElementById('cert-desc').value = '';
-      toast('Certification created');
-    } catch (e) {
-      toast('Failed: ' + e.message, true);
-    }
-  };
-
-  window.deleteCert = async function(certId) {
-    if (!confirm('Delete this certification? It will be removed from all pilots.')) return;
-    try {
-      await remove(ref(db, `certifications/${certId}`));
-      delete allCerts[certId];
-      renderCertList();
-      toast('Certification deleted');
-    } catch (e) {
-      toast('Failed: ' + e.message, true);
-    }
-  };
-
-  function renderPilotTable(pilots) {
-    const tbody = document.getElementById('pilot-tbody');
-    tbody.innerHTML = pilots.map(p => {
-      const rank = getRank(p.totalHours, p.chiefPilot);
-      return `
-      <tr>
-        <td>${p.firstName || ''} ${p.lastName || ''}</td>
-        <td>${p.email || ''}</td>
-        <td>${p.location || '—'}</td>
-        <td><span style="color:${rank.color};font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.2em;text-transform:uppercase;">${rank.title}</span></td>
-        <td>${Number(p.totalHours || 0).toFixed(1)} hrs</td>
-        <td><span class="badge ${p.admin ? 'badge-admin' : 'badge-pilot'}">${p.admin ? 'Admin' : 'Pilot'}</span></td>
-        <td><button class="tbl-btn" onclick="openEdit('${p.uid}')">Edit</button></td>
-      </tr>`;
-    }).join('');
-  }
-
-  function populateEmailDropdown(pilots) {
-    const sel = document.getElementById('email-pilot-select');
-    sel.innerHTML = '<option value=””>— Select a pilot —</option>' +
-      pilots.map(p => `<option value=”${p.uid}”>${p.firstName || ''} ${p.lastName || ''} (${p.email || ''})</option>`).join('');
-  }
-
-  // â”€â”€ Search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  window.filterPilots = function() {
-    const q = document.getElementById('search').value.toLowerCase();
-    const filtered = allPilots.filter(p =>
-      (p.firstName + ' ' + p.lastName + ' ' + p.email).toLowerCase().includes(q)
-    );
-    renderPilotTable(filtered);
-  };
-
-  // â”€â”€ Edit pilot modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Edit pilot modal ──────────────────────────────────────────
   let editingUid = null;
-
-  function getRank(hours, chiefPilot) {
-    if (chiefPilot) return { title: 'Chief Pilot', color: '#c8860a' };
-    const h = Number(hours) || 0;
-    if (h >= 500)  return { title: 'Senior Captain',       color: '#e8c96a' };
-    if (h >= 250)  return { title: 'Captain',              color: '#4fc3f7' };
-    if (h >= 100)  return { title: 'Senior First Officer', color: '#81c784' };
-    if (h >= 25)   return { title: 'First Officer',        color: '#aaa' };
-    return           { title: 'Student Pilot',             color: '#666' };
-  }
 
   window.openEdit = async function(uid) {
     editingUid = uid;
-    const snap = await get(ref(db, `users/${uid}`));
-    const d = snap.val() || {};
-    document.getElementById('edit-first').value    = d.firstName    || '';
-    document.getElementById('edit-last').value     = d.lastName     || '';
-    document.getElementById('edit-email').value    = d.email        || '';
-    document.getElementById('edit-phone').value    = d.phone        || '';
-    document.getElementById('edit-loc').value      = d.location     || '';
-    document.getElementById('edit-bio').value      = d.bio          || '';
-    document.getElementById('edit-hours').value       = d.totalHours  || 0;
-    document.getElementById('edit-admin').checked     = !!d.admin;
-    document.getElementById('edit-chief').checked     = !!d.chiefPilot;
-    const rank = getRank(d.totalHours, d.chiefPilot);
-    document.getElementById('edit-rank-display').textContent = rank.title;
-    document.getElementById('edit-rank-display').style.color = rank.color;
-    const certSnap = await get(ref(db, `users/${uid}/certifications`));
-    const pilotCerts = certSnap.exists() ? certSnap.val() : {};
-    const certEntries = Object.entries(allCerts);
-    document.getElementById('cert-checkboxes').innerHTML = certEntries.length
-      ? certEntries.map(([id, cert]) => `
-          <div class="checkbox-row">
-            <input type="checkbox" id="cert-cb-${id}" ${pilotCerts[id] ? 'checked' : ''}>
-            <label for="cert-cb-${id}">${cert.name}${cert.description ? ' — ' + cert.description : ''}</label>
-          </div>`).join('')
-      : '<div style="color:var(--muted);font-size:12px;font-family:\'Barlow Condensed\',sans-serif;letter-spacing:.1em;">No certifications available. Create some in the Certifications card first.</div>';
-    document.getElementById('modal').classList.add('open');
+    try {
+      const snap = await get(ref(db, `users/${uid}`));
+      const d = snap.val() || {};
+      document.getElementById('edit-first').value  = d.firstName   || '';
+      document.getElementById('edit-last').value   = d.lastName    || '';
+      document.getElementById('edit-email').value  = d.email       || '';
+      document.getElementById('edit-phone').value  = d.phone       || '';
+      document.getElementById('edit-loc').value    = d.location    || '';
+      document.getElementById('edit-bio').value    = d.bio         || '';
+      document.getElementById('edit-hours').value  = d.totalHours  || 0;
+      document.getElementById('edit-admin').checked = !!d.admin;
+      document.getElementById('edit-chief').checked = !!d.chiefPilot;
+      const rank = getRank(d.totalHours, d.chiefPilot);
+      document.getElementById('edit-rank-display').textContent = rank.title;
+      document.getElementById('edit-rank-display').style.color = rank.color;
+
+      const certSnap = await get(ref(db, `users/${uid}/certifications`));
+      const pilotCerts = certSnap.exists() ? certSnap.val() : {};
+      const certEntries = Object.entries(allCerts);
+      document.getElementById('cert-checkboxes').innerHTML = certEntries.length
+        ? certEntries.map(([id, cert]) => `
+            <div class="checkbox-row">
+              <input type="checkbox" id="cert-cb-${id}" ${pilotCerts[id] ? 'checked' : ''}>
+              <label for="cert-cb-${id}">${cert.name}${cert.description ? ' &mdash; ' + cert.description : ''}</label>
+            </div>`).join('')
+        : '<div style="color:var(--muted);font-size:12px;font-family:\'Barlow Condensed\',sans-serif;">No certifications created yet.</div>';
+
+      document.getElementById('modal').classList.add('open');
+    } catch (e) { toast('Could not load pilot: ' + e.message, true); }
   };
 
   window.closeModal = function() {
@@ -295,16 +284,15 @@
 
   window.saveEdit = async function() {
     if (!editingUid) return;
-    const firstName   = document.getElementById('edit-first').value.trim();
-    const lastName    = document.getElementById('edit-last').value.trim();
-    const phone       = document.getElementById('edit-phone').value.trim();
-    const location    = document.getElementById('edit-loc').value.trim().toUpperCase();
-    const bio         = document.getElementById('edit-bio').value.trim();
-    const isAdmin     = document.getElementById('edit-admin').checked;
-    const totalHours  = parseFloat(document.getElementById('edit-hours').value) || 0;
-    const chiefPilot  = document.getElementById('edit-chief').checked;
-    const rank        = getRank(totalHours, chiefPilot).title;
-
+    const firstName  = document.getElementById('edit-first').value.trim();
+    const lastName   = document.getElementById('edit-last').value.trim();
+    const phone      = document.getElementById('edit-phone').value.trim();
+    const location   = document.getElementById('edit-loc').value.trim().toUpperCase();
+    const bio        = document.getElementById('edit-bio').value.trim();
+    const isAdmin    = document.getElementById('edit-admin').checked;
+    const totalHours = parseFloat(document.getElementById('edit-hours').value) || 0;
+    const chiefPilot = document.getElementById('edit-chief').checked;
+    const rank       = getRank(totalHours, chiefPilot).title;
     try {
       await update(ref(db, `users/${editingUid}`), { firstName, lastName, phone, location, bio, admin: isAdmin, chiefPilot, totalHours, rank, updatedAt: Date.now() });
       await update(ref(db, `usersPublic/${editingUid}`), { firstName, lastName, location, bio, totalHours, rank, chiefPilot, updatedAt: Date.now() });
@@ -312,8 +300,8 @@
         const cb = document.getElementById(`cert-cb-${certId}`);
         if (!cb) continue;
         if (cb.checked) {
-          const existing = await get(ref(db, `users/${editingUid}/certifications/${certId}`));
-          if (!existing.exists()) {
+          const ex = await get(ref(db, `users/${editingUid}/certifications/${certId}`));
+          if (!ex.exists()) {
             await set(ref(db, `users/${editingUid}/certifications/${certId}`), { earnedAt: Date.now() });
             await set(ref(db, `usersPublic/${editingUid}/certifications/${certId}`), { earnedAt: Date.now() });
           }
@@ -322,55 +310,39 @@
           await remove(ref(db, `usersPublic/${editingUid}/certifications/${certId}`));
         }
       }
-      toast('Profile saved successfully');
+      toast('Profile saved');
       closeModal();
       loadPilots();
-    } catch (e) {
-      toast('Save failed: ' + e.message, true);
-    }
+    } catch (e) { toast('Save failed: ' + e.message, true); }
   };
 
   window.deletePilot = async function() {
-    if (!editingUid) return;
-    if (!confirm('Are you sure you want to delete this pilot? This cannot be undone.')) return;
+    if (!editingUid || !confirm('Delete this pilot permanently?')) return;
     try {
       await remove(ref(db, `users/${editingUid}`));
       await remove(ref(db, `usersPublic/${editingUid}`));
-      const remaining = await get(ref(db, 'usersPublic'));
-      const newCount = remaining.exists() ? Object.keys(remaining.val() || {}).length : 0;
-      await set(ref(db, 'pilotCount'), newCount);
+      const rem = await get(ref(db, 'usersPublic'));
+      await set(ref(db, 'pilotCount'), rem.exists() ? Object.keys(rem.val() || {}).length : 0);
       toast('Pilot deleted');
       closeModal();
       loadPilots();
-    } catch (e) {
-      toast('Delete failed: ' + e.message, true);
-    }
+    } catch (e) { toast('Delete failed: ' + e.message, true); }
   };
 
-  // â”€â”€ Email sender â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Email ─────────────────────────────────────────────────────
   window.onEmailPilotChange = function() {
     const uid = document.getElementById('email-pilot-select').value;
-    const pilot = allPilots.find(p => p.uid === uid);
-    const emailField = document.getElementById('email-to');
-    const nameField  = document.getElementById('email-name');
-    if (pilot) {
-      emailField.value = pilot.email || '';
-      nameField.value  = pilot.firstName || '';
-    } else {
-      emailField.value = '';
-      nameField.value  = '';
-    }
+    const p = allPilots.find(x => x.uid === uid);
+    document.getElementById('email-to').value   = p ? (p.email || '') : '';
+    document.getElementById('email-name').value = p ? (p.firstName || '') : '';
   };
 
   window.sendWelcomeEmail = async function() {
     const email = document.getElementById('email-to').value.trim();
     const firstName = document.getElementById('email-name').value.trim();
-    if (!document.getElementById('email-pilot-select').value) { toast('Select a pilot first', true); return; }
-    if (!email) { toast('This pilot has no email saved in Firebase', true); return; }
-
+    if (!email) { toast('Select a pilot with an email first', true); return; }
     const btn = document.getElementById('send-welcome-btn');
     btn.disabled = true; btn.textContent = 'Sending...';
-
     try {
       const res = await fetch('https://wsa-fse-sync-production.up.railway.app/send-welcome', {
         method: 'POST',
@@ -378,14 +350,8 @@
         body: JSON.stringify({ email, firstName })
       });
       const data = await res.json();
-      if (data.success) {
-        toast('Welcome email sent to ' + email);
-      } else {
-        toast('Failed: ' + (data.error || 'Unknown error'), true);
-      }
-    } catch (e) {
-      toast('Could not reach sync server. Is it running?', true);
-    }
+      data.success ? toast('Welcome email sent to ' + email) : toast('Failed: ' + (data.error || 'Unknown'), true);
+    } catch (e) { toast('Could not reach sync server', true); }
     btn.disabled = false; btn.textContent = 'Send Welcome Email';
   };
 
@@ -394,13 +360,10 @@
     const subject = document.getElementById('email-subject').value.trim();
     const body    = document.getElementById('email-body').value.trim();
     const firstName = document.getElementById('email-name').value.trim() || 'Pilot';
-    if (!document.getElementById('email-pilot-select').value) { toast('Select a pilot first', true); return; }
-    if (!email) { toast('This pilot has no email saved in Firebase', true); return; }
+    if (!email)          { toast('Select a pilot with an email first', true); return; }
     if (!subject || !body) { toast('Fill in subject and message', true); return; }
-
     const btn = document.getElementById('send-custom-btn');
     btn.disabled = true; btn.textContent = 'Sending...';
-
     try {
       const res = await fetch('https://wsa-fse-sync-production.up.railway.app/send-custom', {
         method: 'POST',
@@ -412,13 +375,38 @@
         toast('Email sent to ' + email);
         document.getElementById('email-subject').value = '';
         document.getElementById('email-body').value = '';
-      } else {
-        toast('Failed: ' + (data.error || 'Unknown error'), true);
-      }
-    } catch (e) {
-      toast('Could not reach sync server. Is it running?', true);
-    }
+      } else { toast('Failed: ' + (data.error || 'Unknown'), true); }
+    } catch (e) { toast('Could not reach sync server', true); }
     btn.disabled = false; btn.textContent = 'Send Custom Email';
+  };
+
+  // ── Sync ──────────────────────────────────────────────────────
+  window.triggerSync = async function() {
+    const btn = document.getElementById('sync-btn');
+    const result = document.getElementById('sync-result');
+    btn.disabled = true; btn.textContent = 'Syncing...';
+    result.textContent = '';
+    try {
+      const res = await fetch('https://wsa-fse-sync-production.up.railway.app/sync', { method: 'POST' });
+      const data = await res.json();
+      result.textContent = data.success
+        ? 'Synced ' + (data.aircraftSynced || 0) + ' aircraft · ' + new Date().toLocaleTimeString()
+        : 'Error: ' + (data.error || 'Sync failed');
+    } catch (e) { result.textContent = 'Sync server not reachable'; }
+    btn.disabled = false; btn.textContent = 'Trigger FSE Sync';
+  };
+
+  // ── Sign out ──────────────────────────────────────────────────
+  window.doSignOut = async function() {
+    await signOut(auth);
+    window.location.href = 'index.html';
+  };
+
+  // ── Hours input rank preview ──────────────────────────────────
+  window.previewRank = function(val) {
+    const r = getRank(val, document.getElementById('edit-chief').checked);
+    document.getElementById('edit-rank-display').textContent = r.title;
+    document.getElementById('edit-rank-display').style.color = r.color;
   };
 </script>
 
@@ -426,7 +414,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
   --gold: #c8860a; --gold-light: #f0a830;
-  --black: #0a0a0a; --surface: #141414; --surface2: #1c1c1c; --surface3: #222;
+  --black: #0a0a0a; --surface: #141414; --surface2: #1c1c1c;
   --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.12);
   --text: #fff; --muted: #777; --dim: rgba(255,255,255,0.4);
 }
@@ -445,51 +433,36 @@ nav { position: fixed; top: 0; left: 0; right: 0; z-index: 200; height: 60px; ba
 
 /* LAYOUT */
 .wrapper { max-width: 1200px; margin: 0 auto; padding: 90px 32px 80px; }
-.page-header { margin-bottom: 48px; }
 .page-eyebrow { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 0.45em; text-transform: uppercase; color: var(--gold); margin-bottom: 12px; }
-.page-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(40px, 6vw, 64px); line-height: 1; }
+.page-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(40px, 6vw, 64px); line-height: 1; margin-bottom: 40px; }
 .page-title span { color: var(--gold); }
+
+/* STAT STRIP */
+.stat-strip { display: flex; gap: 20px; margin-bottom: 32px; flex-wrap: wrap; }
+.stat-box { background: var(--surface); border: 1px solid var(--border); padding: 20px 28px; flex: 1; min-width: 130px; }
+.stat-num { font-family: 'Bebas Neue', sans-serif; font-size: 36px; color: var(--gold); line-height: 1; }
+.stat-label { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
 
 /* GRID */
 .admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
-@media (max-width: 900px) { .admin-grid { grid-template-columns: 1fr; } }
-
-@media (max-width: 768px) {
-  nav { padding: 0 16px; }
-  .nav-user { display: none; }
-  .nav-right { gap: 10px; }
-  .wrapper { padding: 80px 16px 60px; }
-  .page-header { margin-bottom: 28px; }
-  .stat-strip { gap: 12px; }
-  .stat-box { padding: 16px 18px; min-width: 0; flex: 1 1 calc(50% - 6px); }
-  .stat-box-num { font-size: 28px; }
-  .card { padding: 20px 16px; }
-  .table-section { padding: 20px 16px; }
-  .table-search { width: 100%; }
-  .table-header { flex-direction: column; align-items: stretch; }
-  .toast { bottom: 20px; right: 20px; left: 20px; text-align: center; }
-}
 
 /* CARDS */
 .card { background: var(--surface); border: 1px solid var(--border); padding: 28px; }
 .card-title { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 0.08em; margin-bottom: 6px; }
-.card-sub { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 24px; }
+.card-sub { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 20px; }
+.divider { height: 1px; background: var(--border); margin: 20px 0; }
 
-/* FORM ELEMENTS */
+/* FORM */
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .field label { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted); }
-.field input, .field select, .field textarea {
-  background: var(--surface2); border: 1px solid var(--border); color: var(--text);
-  font-family: 'Barlow Condensed', sans-serif; font-size: 14px; padding: 10px 14px;
-  outline: none; width: 100%; transition: border-color 0.2s;
-}
+.field input, .field select, .field textarea { background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-family: 'Barlow Condensed', sans-serif; font-size: 14px; padding: 10px 14px; outline: none; width: 100%; transition: border-color 0.2s; }
 .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--gold); }
 .field textarea { min-height: 100px; resize: vertical; }
 .field select option { background: var(--surface2); }
+.readonly { opacity: 0.5; cursor: not-allowed; }
 
 /* BUTTONS */
-.btn { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; font-weight: 600; padding: 12px 24px; cursor: pointer; border: none; transition: background 0.2s, transform 0.15s; display: inline-block; }
-.btn:hover:not(:disabled) { transform: scale(1.04); }
+.btn { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; font-weight: 600; padding: 12px 24px; cursor: pointer; border: none; transition: background 0.2s; display: inline-block; }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-gold { background: var(--gold); color: #000; }
 .btn-gold:hover:not(:disabled) { background: var(--gold-light); }
@@ -497,20 +470,17 @@ nav { position: fixed; top: 0; left: 0; right: 0; z-index: 200; height: 60px; ba
 .btn-outline:hover:not(:disabled) { background: var(--gold); color: #000; }
 .btn-danger { background: #7f1d1d; color: #fca5a5; }
 .btn-danger:hover:not(:disabled) { background: #991b1b; }
-.btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
 
-/* DIVIDER */
-.divider { height: 1px; background: var(--border); margin: 20px 0; }
-
-/* PILOT TABLE SECTION */
-.table-section { background: var(--surface); border: 1px solid var(--border); padding: 28px; }
+/* TABLE */
+.table-section { background: var(--surface); border: 1px solid var(--border); padding: 28px; margin-bottom: 32px; }
 .table-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
 .table-search { background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-family: 'Barlow Condensed', sans-serif; font-size: 13px; padding: 8px 14px; outline: none; width: 260px; transition: border-color 0.2s; }
 .table-search:focus { border-color: var(--gold); }
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
 th { font-family: 'Barlow Condensed', sans-serif; font-size: 9px; letter-spacing: 0.35em; text-transform: uppercase; color: var(--muted); padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; }
-td { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; padding: 14px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+td { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; padding: 14px 12px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: rgba(255,255,255,0.02); }
 .badge { font-family: 'Barlow Condensed', sans-serif; font-size: 9px; letter-spacing: 0.25em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; }
@@ -519,29 +489,37 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .tbl-btn { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; background: transparent; border: 1px solid var(--border2); color: var(--dim); padding: 4px 12px; cursor: pointer; transition: border-color 0.2s, color 0.2s; }
 .tbl-btn:hover { border-color: var(--gold); color: var(--gold); }
 
-/* STAT STRIP */
-.stat-strip { display: flex; gap: 24px; margin-bottom: 32px; flex-wrap: wrap; }
-.stat-box { background: var(--surface); border: 1px solid var(--border); padding: 20px 28px; flex: 1; min-width: 140px; }
-.stat-box-num { font-family: 'Bebas Neue', sans-serif; font-size: 36px; color: var(--gold); line-height: 1; }
-.stat-box-label { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
-
 /* MODAL */
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 500; display: none; align-items: center; justify-content: center; padding: 24px; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 500; display: none; align-items: center; justify-content: center; padding: 24px; }
 .modal-overlay.open { display: flex; }
 .modal { background: var(--surface); border: 1px solid var(--border2); width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto; padding: 32px; position: relative; }
 .modal-title { font-family: 'Bebas Neue', sans-serif; font-size: 26px; margin-bottom: 4px; }
 .modal-sub { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 24px; }
-.modal-close { position: absolute; top: 16px; right: 16px; background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; line-height: 1; }
+.modal-close { position: absolute; top: 16px; right: 16px; background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; }
 .modal-close:hover { color: var(--text); }
-.checkbox-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-.checkbox-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--gold); cursor: pointer; }
-.checkbox-row label { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); cursor: pointer; }
+.checkbox-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.checkbox-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--gold); cursor: pointer; flex-shrink: 0; }
+.checkbox-row label { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: 0.15em; color: var(--muted); cursor: pointer; }
 
 /* TOAST */
 .toast { position: fixed; bottom: 28px; right: 28px; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600; padding: 13px 22px; transform: translateY(80px); opacity: 0; transition: transform 0.35s, opacity 0.35s; z-index: 999; pointer-events: none; }
 .toast.show { transform: translateY(0); opacity: 1; }
 .toast.ok  { background: var(--gold); color: #000; }
 .toast.err { background: #c0392b; color: #fff; }
+
+@media (max-width: 900px) { .admin-grid { grid-template-columns: 1fr; } }
+@media (max-width: 768px) {
+  nav { padding: 0 16px; }
+  .nav-user { display: none; }
+  .wrapper { padding: 80px 16px 60px; }
+  .stat-strip { gap: 12px; }
+  .stat-box { padding: 16px 18px; min-width: 0; flex: 1 1 calc(50% - 6px); }
+  .card { padding: 20px 16px; }
+  .table-section { padding: 20px 16px; }
+  .table-search { width: 100%; }
+  .table-header { flex-direction: column; align-items: stretch; }
+  .toast { bottom: 16px; right: 16px; left: 16px; text-align: center; }
+}
 </style>
 </head>
 <body>
@@ -550,63 +528,59 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   <a class="nav-logo" href="index.html">WESTERN <span>SKIES</span> AIR</a>
   <div class="nav-right">
     <span class="nav-badge">Admin</span>
-    <span class="nav-user">Signed in as <strong id=”admin-name”>—</strong></span>
+    <span class="nav-user">Signed in as <strong id="admin-name">&mdash;</strong></span>
     <button class="nav-btn" onclick="doSignOut()">Sign Out</button>
   </div>
 </nav>
 
 <div class="wrapper">
 
-  <div class="page-header">
-    <div class="page-eyebrow">Operations Center</div>
-    <div class="page-title">ADMIN <span>PANEL</span></div>
-  </div>
+  <div class="page-eyebrow">Operations Center</div>
+  <div class="page-title">ADMIN <span>PANEL</span></div>
 
-  <!-- STAT STRIP -->
+  <!-- STATS -->
   <div class="stat-strip">
     <div class="stat-box">
-      <div class=”stat-box-num” id=”pilot-count”>—</div>
-      <div class="stat-box-label">Registered Pilots</div>
+      <div class="stat-num" id="pilot-count">&mdash;</div>
+      <div class="stat-label">Registered Pilots</div>
     </div>
     <div class="stat-box">
-      <div class="stat-box-num">WSA</div>
-      <div class="stat-box-label">Group ID 109630</div>
+      <div class="stat-num">WSA</div>
+      <div class="stat-label">Group ID 109630</div>
     </div>
     <div class="stat-box">
-      <div class="stat-box-num">KSJT</div>
-      <div class="stat-box-label">Home Base</div>
+      <div class="stat-num">KSJT</div>
+      <div class="stat-label">Home Base</div>
     </div>
   </div>
 
-  <!-- TOP GRID: Email + Quick Actions -->
+  <!-- TOP GRID -->
   <div class="admin-grid">
 
-    <!-- EMAIL SENDER -->
+    <!-- EMAIL -->
     <div class="card">
       <div class="card-title">Send Email</div>
-      <div class="card-sub">Send welcome or custom emails to pilots</div>
+      <div class="card-sub">Welcome &amp; custom messages to pilots</div>
 
       <div class="field">
-        <label>Select Pilot (optional)</label>
+        <label>Select Pilot</label>
         <select id="email-pilot-select" onchange="onEmailPilotChange()">
-          <option value="">— Select a pilot —</option>
+          <option value="">&mdash; Select a pilot &mdash;</option>
         </select>
       </div>
       <div class="field">
         <label>To (Email Address)</label>
-        <input type="email" id="email-to" placeholder="Auto-filled from pilot selection" readonly style="opacity:0.6;cursor:not-allowed;">
+        <input type="email" id="email-to" placeholder="Auto-filled from pilot selection" readonly class="readonly">
       </div>
       <div class="field">
         <label>Pilot First Name</label>
-        <input type="text" id="email-name" placeholder="Auto-filled from pilot selection" readonly style="opacity:0.6;cursor:not-allowed;">
+        <input type="text" id="email-name" placeholder="Auto-filled from pilot selection" readonly class="readonly">
       </div>
-
       <div class="btn-row">
         <button class="btn btn-outline" id="send-welcome-btn" onclick="sendWelcomeEmail()">Send Welcome Email</button>
       </div>
 
       <div class="divider"></div>
-
       <div class="card-sub" style="margin-bottom:14px;">Custom Message</div>
       <div class="field">
         <label>Subject</label>
@@ -621,25 +595,24 @@ tr:hover td { background: rgba(255,255,255,0.02); }
       </div>
     </div>
 
-    <!-- QUICK INFO -->
+    <!-- QUICK REFERENCE -->
     <div class="card">
       <div class="card-title">Quick Reference</div>
       <div class="card-sub">Admin tools and links</div>
 
-      <div style="display:flex;flex-direction:column;gap:10px;">
-        <a href="index.html" class="btn btn-outline" style="text-align:center;text-decoration:none;">â† Back to Main Site</a>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;">
+        <a href="index.html"  class="btn btn-outline" style="text-align:center;text-decoration:none;">Back to Main Site</a>
         <a href="roster.html" class="btn btn-outline" style="text-align:center;text-decoration:none;">View Pilot Roster</a>
-        <a href="staff.html" class="btn btn-outline" style="text-align:center;text-decoration:none;">Staff Page</a>
+        <a href="staff.html"  class="btn btn-outline" style="text-align:center;text-decoration:none;">Staff Page</a>
       </div>
 
       <div class="divider"></div>
-
       <div class="card-sub" style="margin-bottom:12px;">Sync Server</div>
       <p style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:14px;">
         Triggers a live data sync from FSEconomy via the Railway sync server. Updates aircraft, jobs, flights, hours, and revenue.
       </p>
-      <button class="btn btn-gold" onclick="triggerSync()">Trigger FSE Sync</button>
-      <div id="sync-result" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);margin-top:10px;"></div>
+      <button class="btn btn-gold" id="sync-btn" onclick="triggerSync()">Trigger FSE Sync</button>
+      <div id="sync-result" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);margin-top:10px;letter-spacing:.05em;"></div>
     </div>
 
   </div>
@@ -667,20 +640,17 @@ tr:hover td { background: rgba(255,255,255,0.02); }
           </tr>
         </thead>
         <tbody id="pilot-tbody">
-          <tr><td colspan="7" style="color:var(--muted);">Waiting for auth…</td></tr>
+          <tr><td colspan="7" style="color:var(--muted);text-align:center;padding:32px 0;">Loading pilots&hellip;</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
-</div>
-
-<!-- CERTIFICATIONS CARD -->
-<div style="max-width:1200px;margin:0 auto 24px;padding:0 32px;">
+  <!-- CERTIFICATIONS -->
   <div class="card">
     <div class="card-title">Certifications</div>
-    <div class="card-sub">Create certification types — assign them to pilots via the Edit button</div>
-    <div id="cert-list" style="margin-bottom:20px;"></div>
+    <div class="card-sub">Create types &mdash; assign to pilots via the Edit button or Assign</div>
+    <div id="cert-list" style="margin-bottom:20px;min-height:24px;"></div>
     <div class="divider"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;">
       <div class="field" style="margin-bottom:0;">
@@ -696,43 +666,28 @@ tr:hover td { background: rgba(255,255,255,0.02); }
       <button class="btn btn-gold" onclick="createCert()">Create Certification</button>
     </div>
   </div>
+
 </div>
 
-<!-- EDIT MODAL -->
+<!-- EDIT PILOT MODAL -->
 <div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
   <div class="modal">
-    <button class="modal-close" onclick="closeModal()">âœ•</button>
+    <button class="modal-close" onclick="closeModal()">&times;</button>
     <div class="modal-title">Edit Pilot</div>
     <div class="modal-sub">Changes save directly to Firebase</div>
 
-    <div class="field">
-      <label>First Name</label>
-      <input type="text" id="edit-first" placeholder="First name">
-    </div>
-    <div class="field">
-      <label>Last Name</label>
-      <input type="text" id="edit-last" placeholder="Last name">
-    </div>
-    <div class="field">
-      <label>Email (read only)</label>
-      <input type="email" id="edit-email" placeholder="Email" readonly style="opacity:0.5;cursor:not-allowed;">
-    </div>
-    <div class="field">
-      <label>Phone</label>
-      <input type="text" id="edit-phone" placeholder="Phone number">
-    </div>
-    <div class="field">
-      <label>Home Base (ICAO)</label>
-      <input type="text" id="edit-loc" placeholder="e.g. KSJT">
-    </div>
-    <div class="field">
-      <label>Bio</label>
-      <textarea id="edit-bio" placeholder="Pilot bio..."></textarea>
-    </div>
+    <div class="field"><label>First Name</label><input type="text" id="edit-first"></div>
+    <div class="field"><label>Last Name</label><input type="text" id="edit-last"></div>
+    <div class="field"><label>Email (read only)</label><input type="email" id="edit-email" readonly class="readonly"></div>
+    <div class="field"><label>Phone</label><input type="text" id="edit-phone"></div>
+    <div class="field"><label>Home Base (ICAO)</label><input type="text" id="edit-loc" placeholder="e.g. KSJT"></div>
+    <div class="field"><label>Bio</label><textarea id="edit-bio"></textarea></div>
     <div class="field">
       <label>Total Flight Hours</label>
-      <input type="number" id="edit-hours" placeholder="0" min="0" step="0.1" oninput="const r=getRank(this.value);document.getElementById('edit-rank-display').textContent=r.title;document.getElementById('edit-rank-display').style.color=r.color;">
-      <div style="margin-top:6px;font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.2em;text-transform:uppercase;">Rank: <span id="edit-rank-display">Student Pilot</span></div>
+      <input type="number" id="edit-hours" min="0" step="0.1" oninput="previewRank(this.value)">
+      <div style="margin-top:6px;font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.2em;text-transform:uppercase;">
+        Rank: <span id="edit-rank-display">Student Pilot</span>
+      </div>
     </div>
     <div class="checkbox-row">
       <input type="checkbox" id="edit-admin">
@@ -746,34 +701,32 @@ tr:hover td { background: rgba(255,255,255,0.02); }
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Certifications</div>
       <div id="cert-checkboxes"></div>
     </div>
-
-    <div class="btn-row">
-      <button class="btn btn-gold" onclick="saveEdit()">Save Changes</button>
-      <button class="btn btn-danger" onclick="deletePilot()">Delete Pilot</button>
+    <div class="btn-row" style="margin-top:20px;">
+      <button class="btn btn-gold"    onclick="saveEdit()">Save Changes</button>
+      <button class="btn btn-danger"  onclick="deletePilot()">Delete Pilot</button>
       <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
     </div>
   </div>
 </div>
 
-<!-- ASSIGN MODAL -->
+<!-- ASSIGN CERT MODAL -->
 <div class="modal-overlay" id="assign-modal" onclick="if(event.target===this)closeAssignModal()">
   <div class="modal">
-    <button class="modal-close" onclick="closeAssignModal()">âœ•</button>
+    <button class="modal-close" onclick="closeAssignModal()">&times;</button>
     <div class="modal-title" id="assign-cert-name">Certification</div>
-    <div class="modal-sub" id="assign-cert-desc"></div>
+    <div class="modal-sub" id="assign-cert-desc" style="display:none;"></div>
 
     <div style="margin-bottom:20px;">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Assign to Pilot</div>
       <div style="display:flex;gap:10px;align-items:center;">
         <select id="assign-pilot-select" style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:14px;padding:10px 14px;outline:none;">
-          <option value="">— Select a pilot —</option>
+          <option value="">&mdash; Select a pilot &mdash;</option>
         </select>
-        <button class="btn btn-gold" onclick="assignCertToPilot()">Assign</button>
+        <button class="btn btn-gold" onclick="assignCert()">Assign</button>
       </div>
     </div>
 
     <div class="divider"></div>
-
     <div style="margin-top:16px;">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Currently Certified</div>
       <div id="assign-certified-list"></div>
@@ -782,33 +735,5 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 </div>
 
 <div class="toast" id="toast"></div>
-
-<script>
-async function triggerSync() {
-  const btn = event.target;
-  const result = document.getElementById('sync-result');
-  btn.disabled = true;
-  btn.textContent = 'Syncing...';
-  result.textContent = '';
-  try {
-<<<<<<< HEAD
-    const res = await fetch('https://wsa-fse-sync-production.up.railway.app/sync', { method: 'POST', headers: { 'Authorization': 'Bearer wsa-7kM9pL2xN4qR8vJd3wT6fYcE' } });
-=======
-    const res = await fetch('https://wsa-fse-sync-production.up.railway.app/sync', { method: 'POST' });
->>>>>>> 9bd141af511256ac9233775698fa0804aa3bf587
-    const data = await res.json();
-    if (data.success) {
-      result.textContent = 'âœ… Synced ' + data.aircraftSynced + ' aircraft Â· ' + new Date().toLocaleTimeString();
-    } else {
-      result.textContent = 'âŒ ' + (data.error || 'Sync failed');
-    }
-  } catch (e) {
-    result.textContent = 'âŒ Sync server not reachable';
-  }
-  btn.disabled = false;
-  btn.textContent = 'Trigger FSE Sync';
-}
-</script>
-
 </body>
 </html>
