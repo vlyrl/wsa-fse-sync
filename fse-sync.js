@@ -1,6 +1,42 @@
 require('dotenv').config();
 const fs = require('fs');
 
+// Airport lat/lon used to tag pireps at sync time so the map never needs a client-side lookup
+const AIRPORT_COORDS = {
+  KABI:[32.4113,-99.6819],KACT:[31.6113,-97.2305],KADS:[32.9682,-96.8351],
+  KAFW:[32.9876,-97.3188],KAMA:[35.2194,-101.706],KAUS:[30.1945,-97.6699],
+  KBBD:[31.1793,-99.3239],KBPT:[29.9508,-94.0207],KBRO:[25.9068,-97.4259],
+  KBAZ:[29.7073,-97.8663],KCDS:[34.4337,-100.285],KCLL:[30.5885,-96.3638],
+  KCNM:[32.3373,-104.263],KCRP:[27.7704,-97.5012],KCXO:[30.3518,-95.4147],
+  KDAL:[32.8474,-96.8518],KDFW:[32.8968,-97.0380],KDRT:[29.3747,-100.927],
+  KELP:[31.8072,-106.378],KEND:[36.3392,-97.9163],KFTW:[32.8197,-97.3625],
+  KGAG:[36.2955,-99.7736],KGDP:[31.4226,-104.025],KGGG:[32.3840,-94.7115],
+  KGLS:[29.2653,-94.8604],KGRK:[31.0672,-97.8289],KGTU:[30.6788,-97.6794],
+  KHDO:[29.3595,-99.1770],KHOB:[32.6875,-103.217],KHOU:[29.6454,-95.2789],
+  KIAH:[29.9902,-95.3368],KICT:[37.6499,-97.4331],KINK:[31.7795,-103.200],
+  KJCT:[30.5113,-99.7985],KJKV:[31.8493,-94.9634],KLBB:[33.6636,-101.823],
+  KLCH:[30.1261,-93.2233],KLFT:[30.2053,-91.9876],KLRD:[27.5438,-99.4615],
+  KLIT:[34.7294,-92.2243],KLTS:[34.6667,-99.2667],KLAW:[34.5677,-98.4166],
+  KMAF:[31.9425,-102.202],KMCI:[39.2976,-94.7138],KMFE:[26.1758,-98.2386],
+  KMLU:[32.5109,-92.0377],KMSY:[29.9934,-90.2580],KMWL:[32.7814,-98.0602],
+  KNQI:[27.5077,-97.8096],KOKC:[35.3931,-97.6007],KPPA:[35.6129,-100.996],
+  KPNZ:[27.7813,-98.1828],KPRC:[34.6545,-112.420],KPUB:[38.2891,-104.497],
+  KRBD:[32.6809,-96.8680],KROW:[33.3016,-104.531],KSAF:[35.6171,-106.088],
+  KSAT:[29.5337,-98.4698],KSEP:[33.1779,-98.1978],KSGR:[29.6223,-95.6565],
+  KSHV:[32.4466,-93.8256],KSJT:[31.3574,-100.497],KSNK:[32.6959,-100.949],
+  KSAO:[28.9817,-100.896],KSPS:[33.9888,-98.4919],KSTL:[38.7487,-90.3700],
+  KTRL:[33.5943,-99.0216],KTUL:[36.1984,-95.8881],KTUS:[32.1161,-110.941],
+  KTXK:[33.4539,-93.9910],KTYR:[32.3541,-95.4024],KVCT:[28.8526,-96.9185],
+  KABQ:[35.0402,-106.609],KBTR:[30.5332,-91.1496],KCOS:[38.8058,-104.701],
+  KDEN:[39.8561,-104.674],KDRO:[37.1515,-107.754],KFLG:[35.1385,-111.671],
+  KFSM:[35.3366,-94.3674],KGBD:[38.3441,-98.8591],KHYS:[38.8422,-99.2732],
+  KLAS:[36.0840,-115.154],KLAX:[33.9425,-118.408],KMIA:[25.7959,-80.2870],
+  KORD:[41.9786,-87.9048],KATL:[33.6407,-84.4277],KJFK:[40.6398,-73.7789],
+  KPHX:[33.4373,-112.008],KSFO:[37.6213,-122.379],KSAN:[32.7336,-117.190],
+  KSLC:[40.7884,-111.978],KXNA:[36.2819,-94.3068],KOWP:[36.4451,-97.9984],
+  KGCK:[37.9275,-100.724],KDCA:[38.8521,-77.0377],KSEA:[47.4502,-122.309],
+};
+
 // Polyfill globals for Node.js 18 compatibility
 if (typeof global.ReadableStream === 'undefined') {
   try {
@@ -201,6 +237,7 @@ async function fetchJobs() {
         const cargo    = cell(cells, 7);
         const comment  = cell(cells, 8);
         const expires  = cell(cells, 9);
+        const pilot    = cell(cells, 10); // pilot name shown for enroute jobs
 
         // Status: "Locked" shows in col 0 if locked, otherwise Open
         const lockCell = cell(cells, 0);
@@ -221,7 +258,8 @@ async function fetchJobs() {
           cargo:    cargo,
           comment:  comment,
           expires:  expires,
-          status:   status
+          status:   status,
+          pilot:    pilot
         });
       });
     });
@@ -561,15 +599,43 @@ async function fetchLog() {
         totalEarnings += earnings;
 
         pireps.push({
-          date,
-          dep,
-          arr,
-          aircraft,
-          pilot,
+          date, dep, arr, aircraft, pilot,
           blockTime: parseFloat((blockMinutes / 60).toFixed(2)),
-          earnings: earnings
+          earnings: earnings,
         });
       });
+    });
+
+    // ── Resolve airport coordinates ───────────────────────────
+    // Build merged coords: hardcoded table + API lookup for unknowns
+    const coordsMap = Object.assign({}, AIRPORT_COORDS);
+    const unknownCodes = [...new Set(
+      pireps.flatMap(p => [p.dep, p.arr]).filter(c => c && c !== '???' && !coordsMap[c])
+    )];
+    if (unknownCodes.length) {
+      try {
+        const res = await axios.get(
+          'https://api.aviationapi.com/v1/airports?apt=' + unknownCodes.join(','),
+          { timeout: 8000 }
+        );
+        Object.entries(res.data || {}).forEach(([code, entries]) => {
+          const e = Array.isArray(entries) ? entries[0] : entries;
+          if (!e) return;
+          const lat = parseFloat(e.latitude || e.lat || 0);
+          const lon = parseFloat(e.longitude || e.lon || e.long || 0);
+          if (lat && lon) coordsMap[code] = [lat, lon];
+        });
+        console.log('✅ Airport coords resolved for: ' + unknownCodes.join(', '));
+      } catch (coordErr) {
+        console.warn('⚠️  Airport coord lookup failed:', coordErr.message);
+      }
+    }
+    // Tag each pirep with its coordinates
+    pireps.forEach(p => {
+      const dc = coordsMap[p.dep];
+      const ac = coordsMap[p.arr];
+      if (dc) { p.depLat = dc[0]; p.depLon = dc[1]; }
+      if (ac) { p.arrLat = ac[0]; p.arrLon = ac[1]; }
     });
 
     const flightCount = pireps.length;

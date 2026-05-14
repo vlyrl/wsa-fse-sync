@@ -1,10 +1,12 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Western Skies Air — Virtual Charter Airline</title>
+<title>Western Skies Air &mdash; Virtual Charter Airline</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -65,7 +67,7 @@
         } else {
           dot.className = 'status-dot idle';
           dot.style.cssText = 'background:#f0a830;box-shadow:0 0 6px #f0a830';
-          label.textContent = `In Transit — ${ac.location}`;
+          label.textContent = `In Transit u2014 ${ac.location}`;
           label.style.color = '#f0a830';
         }
         if (locEl) locEl.textContent = ac.location || '—';
@@ -116,16 +118,47 @@
     });
 
     onValue(ref(db, 'jobsAvailable'), snap => {
-      const jobs = snap.exists() ? Object.values(snap.val() || {}) : [];
+      const allJobs = snap.exists() ? Object.values(snap.val() || {}) : [];
+      const isEnroute = j => { const l = (j.location || '').toLowerCase(); return l.includes('enroute') || l.includes('en route') || l.includes('en-route') || l.includes('[en'); };
+      const enroute  = allJobs.filter(j => isEnroute(j));
+      const available = allJobs.filter(j => !isEnroute(j));
+
+      // ── Live Ops panel ──
+      const livePanel = document.getElementById('live-ops-panel');
+      const liveList  = document.getElementById('live-ops-list');
+      if (livePanel && liveList) {
+        if (enroute.length) {
+          liveList.innerHTML = enroute.map(job => {
+            const from  = escapeHTML(job.from  || '???');
+            const dest  = escapeHTML(job.dest  || '???');
+            const cargo = escapeHTML(job.cargo || '');
+            const nm    = escapeHTML(job.nm    || '');
+            const pilot = escapeHTML(job.pilot || '');
+            return '<div class="live-op-card">'
+              + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">'
+              +   '<span class="live-dot"></span>'
+              +   '<span class="live-route">' + from + ' &rarr; ' + dest + '</span>'
+              + '</div>'
+              + '<div class="live-meta">Operated by <strong>' + (pilot || 'Unknown') + '</strong></div>'
+              + (cargo ? '<div class="live-meta">Cargo: ' + cargo + '</div>' : '')
+              + (nm    ? '<div class="live-meta">' + nm + ' NM</div>' : '')
+              + '</div>';
+          }).join('');
+        } else {
+          liveList.innerHTML = '<div class="job-card empty">No active flights right now.</div>';
+        }
+      }
+
+      // ── Available jobs panel ──
       const jobsList = document.getElementById('jobs-list');
       const jobsCount = document.getElementById('jobs-count');
-      if (jobsCount) jobsCount.textContent = String(jobs.length);
+      if (jobsCount) jobsCount.textContent = String(available.length);
       if (!jobsList) return;
-      if (!jobs.length) {
+      if (!available.length) {
         jobsList.innerHTML = '<div class="job-card empty">No current jobs available.</div>';
         return;
       }
-      jobsList.innerHTML = jobs.slice(0, 8).map(job => {
+      jobsList.innerHTML = available.slice(0, 8).map(job => {
         const pay      = job.pay      || 'N/A';
         const pilotFee = job.pilotFee || '';
         const from     = job.from     || '';
@@ -137,7 +170,7 @@
         const expires  = job.expires  || '';
         const status   = job.status   || 'Open';
         const route = (from && dest)
-          ? escapeHTML(from) + ' → ' + escapeHTML(dest)
+          ? escapeHTML(from) + ' &rarr; ' + escapeHTML(dest)
           : escapeHTML(location || 'Route unavailable');
         const fields = [
           nm      ? '<div class="job-field"><span class="job-field-label">Distance</span><span class="job-field-val">' + escapeHTML(nm) + ' NM</span></div>' : '',
@@ -154,7 +187,7 @@
           +   '</div>'
           + '</div>'
           + '<div class="job-meta">'
-          +   (location ? escapeHTML(location) + ' · ' : '')
+          +   (location ? escapeHTML(location) + ' &middot; ' : '')
           +   '<span class="job-status-badge">' + escapeHTML(status) + '</span>'
           + '</div>'
           + '<div class="job-fields">' + (fields || '<span class="job-no-details">No additional details</span>') + '</div>'
@@ -166,21 +199,23 @@
   // ── Live PIREP log listener ─────────────────────────────────
   onValue(ref(db, 'pireps'), snap => {
     const tbody = document.getElementById('log-tbody');
-    if (!tbody) return;
+    const rows = [];
     if (!snap.exists()) {
-      tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:32px 0;">No flights logged yet.</td></tr>';
+      if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:32px 0;">No flights logged yet.</td></tr>';
+      drawRoutes(rows);
       return;
     }
-    const rows = [];
     snap.forEach(child => rows.push({ key: child.key, ...child.val() }));
     rows.sort((a, b) => b.date.localeCompare(a.date));
+    drawRoutes(rows);
 
+    if (!tbody) return;
     tbody.innerHTML = '';
     rows.slice(0, 20).forEach(p => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${p.date}</td>
-        <td><span class="log-icao">${p.dep}</span> → <span class="log-icao">${p.arr}</span></td>
+        <td><span class="log-icao">${p.dep}</span> &rarr; <span class="log-icao">${p.arr}</span></td>
         <td class="log-acft">${p.aircraft}</td>
         <td>${p.pilot}</td>
         <td>${Number(p.blockTime).toFixed(1)} hrs</td>
@@ -412,6 +447,125 @@
     await signOut(auth);
     showToast('Logged out.');
   };
+
+  // ── Airport coordinates for route map ──────────────────────
+  const AIRPORT_COORDS = {
+    // Texas
+    'KABI':[32.4113,-99.6819],'KACT':[31.6113,-97.2305],'KADS':[32.9682,-96.8351],
+    'KAFW':[32.9876,-97.3188],'KAMA':[35.2194,-101.706],'KAUS':[30.1945,-97.6699],
+    'KBPT':[29.9508,-94.0207],'KBRO':[25.9068,-97.4259],'KCLL':[30.5885,-96.3638],
+    'KCRP':[27.7704,-97.5012],'KCXO':[30.3518,-95.4147],'KDAL':[32.8474,-96.8518],
+    'KDFW':[32.8968,-97.0380],'KDRT':[29.3747,-100.927],'KFTW':[32.8197,-97.3625],
+    'KGGG':[32.3840,-94.7115],'KGLS':[29.2653,-94.8604],'KGRK':[31.0672,-97.8289],
+    'KGTU':[30.6788,-97.6794],'KHDO':[29.3595,-99.1770],'KHOU':[29.6454,-95.2789],
+    'KIAH':[29.9902,-95.3368],'KJKV':[31.8493,-94.9634],'KLBB':[33.6636,-101.823],
+    'KLRD':[27.5438,-99.4615],'KMAF':[31.9425,-102.202],'KMFE':[26.1758,-98.2386],
+    'KNQI':[27.5077,-97.8096],'KPPA':[35.6129,-100.996],'KPNZ':[27.7813,-98.1828],
+    'KRBD':[32.6809,-96.8680],'KSAT':[29.5337,-98.4698],'KSGR':[29.6223,-95.6565],
+    'KSJT':[31.3574,-100.497],'KSPS':[33.9888,-98.4919],'KSAO':[28.9817,-100.896],
+    'KTRL':[33.5943,-99.0216],'KTXK':[33.4539,-93.9910],'KTYR':[32.3541,-95.4024],
+    'KVCT':[28.8526,-96.9185],'KSEP':[33.1779,-98.1978],'KBAZ':[29.7073,-97.8663],
+    'KHPN':[41.0670,-73.7076],'KPVW':[33.9564,-101.072],'KINK':[31.7795,-103.200],
+    'KMWL':[32.7814,-98.0602],'KGDP':[31.4226,-104.025],'KSFD':[33.2333,-101.821],
+    'KPEP':[33.1518,-97.9406],'KWEA':[32.7371,-97.2278],'KFWS':[32.5699,-97.3082],
+    'KRPD':[31.7867,-100.483],
+    // Oklahoma
+    'KOKC':[35.3931,-97.6007],'KTUL':[36.1984,-95.8881],'KLAW':[34.5677,-98.4166],
+    'KLTS':[34.6667,-99.2667],'KGAG':[36.2955,-99.7736],'KEND':[36.3392,-97.9163],
+    'KOWP':[36.4451,-97.9984],'KCSM':[35.3398,-99.8005],'KWDG':[36.4379,-97.7913],
+    // New Mexico
+    'KABQ':[35.0402,-106.609],'KELP':[31.8072,-106.378],'KROW':[33.3016,-104.531],
+    'KSAF':[35.6171,-106.088],'KCNM':[32.3373,-104.263],'KHOB':[32.6875,-103.217],
+    'KTCS':[33.2370,-107.272],'KALD':[36.4299,-105.655],'KSRR':[33.4628,-104.529],
+    // Louisiana
+    'KBTR':[30.5332,-91.1496],'KMSY':[29.9934,-90.2580],'KSHV':[32.4466,-93.8256],
+    'KLFT':[30.2053,-91.9876],'KLCH':[30.1261,-93.2233],'KMLU':[32.5109,-92.0377],
+    // Colorado
+    'KDEN':[39.8561,-104.674],'KCOS':[38.8058,-104.701],'KPUB':[38.2891,-104.497],
+    'KDRO':[37.1515,-107.754],
+    // Arizona
+    'KPHX':[33.4373,-112.008],'KTUS':[32.1161,-110.941],'KFLG':[35.1385,-111.671],
+    'KPRC':[34.6545,-112.420],'KIWA':[33.3079,-111.655],'KSDL':[33.6229,-111.910],
+    // Kansas
+    'KICT':[37.6499,-97.4331],'KGBD':[38.3441,-98.8591],'KHYS':[38.8422,-99.2732],
+    'KGCK':[37.9275,-100.724],
+    // Arkansas
+    'KLIT':[34.7294,-92.2243],'KFSM':[35.3366,-94.3674],'KXNA':[36.2819,-94.3068],
+    // Missouri
+    'KMCI':[39.2976,-94.7138],'KSTL':[38.7487,-90.3700],
+    // National hubs
+    'KLAS':[36.0840,-115.154],'KLAX':[33.9425,-118.408],'KORD':[41.9786,-87.9048],
+    'KATL':[33.6407,-84.4277],'KMIA':[25.7959,-80.2870],'KJFK':[40.6398,-73.7789],
+    'KSFO':[37.6213,-122.379],'KSAN':[32.7336,-117.190],'KSLC':[40.7884,-111.978],
+    'KDCA':[38.8521,-77.0377],'KBOS':[42.3656,-71.0096],'KSEA':[47.4502,-122.309],
+  };
+
+  let leafletMap = null;
+
+  // Create the map as soon as the DOM is ready — independent of Firebase data
+  document.addEventListener('DOMContentLoaded', function() {
+    const mapEl = document.getElementById('route-map');
+    if (!mapEl || !window.L) return;
+    leafletMap = L.map('route-map', { center:[32.5,-99.5], zoom:5, zoomControl:true });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      maxZoom:19, subdomains:'abcd'
+    }).addTo(leafletMap);
+  });
+
+  // Draw routes onto the map once Firebase delivers pirep data
+  function drawRoutes(rows) {
+    if (!leafletMap) return;
+
+    // Remove any previously drawn route/marker layers
+    leafletMap.eachLayer(l => { if (!(l instanceof L.TileLayer)) leafletMap.removeLayer(l); });
+
+    if (!rows.length) { console.log('[WSA Map] No pirep rows received'); return; }
+
+    console.log('[WSA Map] Total pireps:', rows.length);
+    console.log('[WSA Map] Sample row:', JSON.stringify(rows[0]));
+    const missing = new Set();
+
+    const routesSeen = new Set();
+    const usedAirports = {};
+    let routeCount = 0;
+
+    rows.forEach(p => {
+      const dep = (p.dep||'').toUpperCase().trim();
+      const arr = (p.arr||'').toUpperCase().trim();
+      if (!dep || !arr || dep === arr) return;
+      // Prefer coords stored by the sync server; fall back to local table
+      const dc = (p.depLat && p.depLon) ? [p.depLat, p.depLon] : AIRPORT_COORDS[dep];
+      const ac = (p.arrLat && p.arrLon) ? [p.arrLat, p.arrLon] : AIRPORT_COORDS[arr];
+      if (!dc) missing.add(dep);
+      if (!ac) missing.add(arr);
+      if (!dc || !ac) return;
+      const key = [dep,arr].sort().join('-');
+      if (!routesSeen.has(key)) {
+        routesSeen.add(key);
+        routeCount++;
+        L.polyline([dc,ac],{color:'#c8860a',weight:1.5,opacity:0.6}).addTo(leafletMap);
+      }
+      usedAirports[dep] = dc;
+      usedAirports[arr] = ac;
+    });
+
+    Object.entries(usedAirports).forEach(([icao, c]) => {
+      L.circleMarker(c,{
+        radius:5, fillColor:'#f0a830', color:'#c8860a',
+        weight:1.5, opacity:1, fillOpacity:0.9
+      }).bindTooltip(icao,{className:'map-tip',direction:'top',offset:[0,-6]}).addTo(leafletMap);
+    });
+
+    console.log('[WSA Map] Routes drawn:', routeCount, '| Missing coords:', [...missing]);
+    const countEl = document.getElementById('map-route-count');
+    if (countEl) countEl.textContent = String(routeCount);
+
+    const allCoords = Object.values(usedAirports);
+    if (allCoords.length > 1) {
+      try { leafletMap.fitBounds(L.latLngBounds(allCoords).pad(0.2)); } catch(e) {}
+    }
+  }
 </script>
 
 <style>
@@ -530,6 +684,11 @@ nav { position:fixed; top:0; left:0; right:0; z-index:100; background:rgba(10,10
 .info-block:first-child { padding-top:0; }  .job-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:20px; margin-top:36px; }
   .job-card { background:var(--surface); border:1px solid var(--border); padding:24px; border-radius:18px; min-height:170px; }
   .job-card.empty { text-align:center; color:var(--muted); grid-column:1/-1; }
+  .live-op-card { background:rgba(200,134,10,0.06); border:1px solid rgba(200,134,10,0.3); padding:24px; border-radius:18px; }
+  .live-dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:#4caf50; box-shadow:0 0 8px #4caf50; animation:pulse 1.5s infinite; flex-shrink:0; }
+  .live-route { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:.05em; }
+  .live-meta { font-family:'Barlow Condensed',sans-serif; font-size:13px; color:var(--muted); letter-spacing:.05em; margin-top:4px; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
   .job-header { display:flex; justify-content:space-between; gap:12px; margin-bottom:16px; align-items:flex-start; }
   .job-route { font-family:'Bebas Neue',sans-serif; font-size:18px; color:var(--gold); line-height:1.1; }
   .job-pay { font-family:'Barlow Condensed',sans-serif; font-size:12px; color:var(--text); background:rgba(200,134,10,0.12); padding:6px 10px; border-radius:999px; }
@@ -635,7 +794,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
   /* Fleet cards */
   .fleet-grid { grid-template-columns:1fr; gap:2px; }
 
-  /* Routes — stack into 2 columns: airport pair + meta */
+  /* Routes &mdash; stack into 2 columns: airport pair + meta */
   .route-item { grid-template-columns:1fr 1fr; gap:12px; align-items:center; padding:20px 0; }
   .route-line { display:none; }
   .route-airport { font-size:26px; }
@@ -644,7 +803,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
   /* Jobs */
   .job-grid { grid-template-columns:1fr; }
 
-  /* Log table — horizontal scroll */
+  /* Log table &mdash; horizontal scroll */
   .log-table-wrap { margin-top:32px; }
   .log-table { margin-top:0; min-width:520px; }
 
@@ -658,7 +817,24 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
 
   /* Toast */
   .toast { bottom:20px; right:20px; left:20px; text-align:center; }
+
+  /* Route map */
+  .routemap-inner { padding:56px 20px; }
+  #route-map { height:300px; }
 }
+
+/* ROUTE MAP */
+.routemap-full { background:var(--surface); border-top:1px solid var(--border); border-bottom:1px solid var(--border); padding:80px 0; }
+.routemap-inner { max-width:1100px; margin:0 auto; padding:0 48px; }
+#route-map { height:500px; margin-top:40px; border:1px solid var(--border); background:#050d1a; }
+.map-legend { margin-top:12px; font-family:'Barlow Condensed',sans-serif; font-size:11px; letter-spacing:.25em; text-transform:uppercase; color:var(--muted); }
+.leaflet-container { font-family:'Barlow Condensed',sans-serif !important; background:#050d1a !important; }
+.map-tip.leaflet-tooltip { background:rgba(8,8,8,0.92) !important; border:1px solid #c8860a !important; border-radius:0 !important; color:#c8860a !important; font-family:'Bebas Neue',sans-serif !important; font-size:14px !important; letter-spacing:.1em !important; padding:4px 10px !important; white-space:nowrap !important; box-shadow:none !important; }
+.map-tip.leaflet-tooltip::before { display:none !important; }
+.leaflet-control-attribution { background:rgba(5,5,5,0.75) !important; color:#444 !important; font-size:9px !important; }
+.leaflet-control-attribution a { color:#666 !important; }
+.leaflet-control-zoom a { background:var(--surface) !important; color:var(--gold) !important; border-color:var(--border) !important; }
+.leaflet-control-zoom a:hover { background:var(--surface2) !important; }
 
   .job-pay-block { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
   .job-pilot-fee { font-family:'Barlow Condensed',sans-serif; font-size:11px; color:var(--muted); }
@@ -678,7 +854,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
   <a class="nav-logo" href="#home">WESTERN <span>SKIES</span> AIR</a>
   <ul class="nav-links">
     <li><a href="#fleet">Fleet</a></li>
-    <li><a href="#routes">Routes</a></li>
+    <li><a href="#map-section">Map</a></li>
     <li><a href="#dispatch">Dispatch</a></li>
     <li><a href="#jobs">Jobs</a></li>
     <li><a href="#log">Flight Log</a></li>
@@ -701,8 +877,8 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
 <div class="mobile-menu" id="mobile-menu">
   <ul class="mobile-menu-links">
     <li><a href="#fleet"    onclick="closeMobileMenu()">Fleet</a></li>
-    <li><a href="#routes"   onclick="closeMobileMenu()">Routes</a></li>
-    <li><a href="#jobs"     onclick="closeMobileMenu()">Jobs</a></li>
+    <li><a href="#map-section" onclick="closeMobileMenu()">Map</a></li>
+    <li><a href="#jobs"        onclick="closeMobileMenu()">Jobs</a></li>
     <li><a href="#log"      onclick="closeMobileMenu()">Flight Log</a></li>
     <li><a href="#about"    onclick="closeMobileMenu()">About</a></li>
     <li><a href="staff.html"  onclick="closeMobileMenu()">Staff</a></li>
@@ -727,7 +903,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
   </svg>
   <div class="hero-content">
     <div class="hero-eyebrow">
-      FSEconomy Virtual Charter · Est. 2024
+      FSEconomy Virtual Charter &middot; Est. 2024
       <span class="live-badge"><span class="live-dot"></span>Live Data</span>
     </div>
     <div class="hero-title">WESTERN<br><span class="accent">SKIES</span><br><span class="outline">AIR</span></div>
@@ -738,10 +914,10 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
       <a class="btn-ghost" href="#fleet">View Fleet</a>
     </div>
     <div class="hero-stats">
-      <div><div class="stat-num" id="stat-hours">—</div><div class="stat-label">Total Hours Logged</div></div>
-      <div><div class="stat-num" id="stat-fleet">—</div><div class="stat-label">Aircraft in Service</div></div>
-      <div><div class="stat-num" id="stat-pilots">—</div><div class="stat-label">Pilots on Roster</div></div>
-      <div><div class="stat-num" id="stat-flights">—</div><div class="stat-label">Flights Logged</div></div>
+      <div><div class="stat-num" id="stat-hours">&mdash;</div><div class="stat-label">Total Hours Logged</div></div>
+      <div><div class="stat-num" id="stat-fleet">&mdash;</div><div class="stat-label">Aircraft in Service</div></div>
+      <div><div class="stat-num" id="stat-pilots">&mdash;</div><div class="stat-label">Pilots on Roster</div></div>
+      <div><div class="stat-num" id="stat-flights">&mdash;</div><div class="stat-label">Flights Logged</div></div>
     </div>
   </div>
 </section>
@@ -771,11 +947,11 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
           <div><div class="spec-label">Pax</div><div class="spec-val">9 passengers</div></div>
           <div><div class="spec-label">Range</div><div class="spec-val">1,070 nm</div></div>
           <div><div class="spec-label">Cruise</div><div class="spec-val">175 kts</div></div>
-          <div><div class="spec-label">Current Location</div><div class="spec-val status-location">—</div></div>
+          <div><div class="spec-label">Current Location</div><div class="spec-val status-location">&mdash;</div></div>
         </div>
         <div class="fleet-status">
           <div class="status-dot" style="background:#888;box-shadow:none;"></div>
-          <span class="status-label" style="font-family:'Barlow Condensed';font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#888;">Loading…</span>
+          <span class="status-label" style="font-family:'Barlow Condensed';font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#888;">Loading&hellip;</span>
         </div>
       </div>
 
@@ -788,11 +964,11 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
           <div><div class="spec-label">Pax</div><div class="spec-val">11 passengers</div></div>
           <div><div class="spec-label">Range</div><div class="spec-val">1,806 nm</div></div>
           <div><div class="spec-label">Cruise</div><div class="spec-val">312 kts</div></div>
-          <div><div class="spec-label">Current Location</div><div class="spec-val status-location">—</div></div>
+          <div><div class="spec-label">Current Location</div><div class="spec-val status-location">&mdash;</div></div>
         </div>
         <div class="fleet-status">
           <div class="status-dot" style="background:#888;box-shadow:none;"></div>
-          <span class="status-label" style="font-family:'Barlow Condensed';font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#888;">Loading…</span>
+          <span class="status-label" style="font-family:'Barlow Condensed';font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#888;">Loading&hellip;</span>
         </div>
       </div>
 
@@ -805,51 +981,37 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
           <div><div class="spec-label">Pax</div><div class="spec-val">10 passengers</div></div>
           <div><div class="spec-label">Range</div><div class="spec-val">2,165 nm</div></div>
           <div><div class="spec-label">Cruise</div><div class="spec-val">451 kts</div></div>
-          <div><div class="spec-label">Current Location</div><div class="spec-val status-location">—</div></div>
+          <div><div class="spec-label">Current Location</div><div class="spec-val status-location">&mdash;</div></div>
         </div>
         <div class="fleet-status">
           <div class="status-dot" style="background:#888;box-shadow:none;"></div>
-          <span class="status-label" style="font-family:'Barlow Condensed';font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#888;">Loading…</span>
+          <span class="status-label" style="font-family:'Barlow Condensed';font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#888;">Loading&hellip;</span>
         </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ROUTES -->
-<div class="routes-full" id="routes">
-  <div class="routes-inner">
-    <div class="section-eyebrow">Service Network</div>
-    <div class="section-title">KEY <span>ROUTES</span></div>
-    <div class="section-sub">Regular charter corridors across Texas, New Mexico, Oklahoma, and Louisiana.</div>
-    <div class="route-list">
-      <div class="route-item">
-        <div><div class="route-airport">KDAL</div><div class="route-city">Dallas Love Field, TX</div></div>
-        <div class="route-line"><div class="route-dash"></div><svg width="22" height="14" viewBox="0 0 120 70" fill="none"><path d="M18 38 Q34 18 66 22 L116 12 L98 28 Q66 30 44 38 Z" fill="#c8860a"/><path d="M3 38 L22 32 L27 34 L8 43 Z" fill="#c8860a" opacity="0.7"/></svg><div class="route-dash-r"></div></div>
-        <div><div class="route-airport">KHOU</div><div class="route-city">Houston Hobby, TX</div></div>
-        <div class="route-meta"><div class="route-aircraft">Citation CJ4</div><div class="route-dist">240 nm · ~55 min</div></div>
-      </div>
-      <div class="route-item">
-        <div><div class="route-airport">KABI</div><div class="route-city">Abilene Regional, TX</div></div>
-        <div class="route-line"><div class="route-dash"></div><svg width="22" height="14" viewBox="0 0 120 70" fill="none"><path d="M25 42 Q38 28 60 32 L112 22 L95 36 Q70 38 50 44 Z" fill="#c8860a"/><path d="M5 42 L28 36 L33 38 L12 48 Z" fill="#c8860a" opacity="0.7"/></svg><div class="route-dash-r"></div></div>
-        <div><div class="route-airport">KELP</div><div class="route-city">El Paso International, TX</div></div>
-        <div class="route-meta"><div class="route-aircraft">King Air 350</div><div class="route-dist">320 nm · ~1h 05m</div></div>
-      </div>
-      <div class="route-item">
-        <div><div class="route-airport">KOKC</div><div class="route-city">Will Rogers, Oklahoma City</div></div>
-        <div class="route-line"><div class="route-dash"></div><svg width="22" height="14" viewBox="0 0 120 70" fill="none"><path d="M25 42 Q38 28 60 32 L112 22 L95 36 Q70 38 50 44 Z" fill="#c8860a"/><path d="M5 42 L28 36 L33 38 L12 48 Z" fill="#c8860a" opacity="0.7"/></svg><div class="route-dash-r"></div></div>
-        <div><div class="route-airport">KSAT</div><div class="route-city">San Antonio Int'l, TX</div></div>
-        <div class="route-meta"><div class="route-aircraft">King Air 350</div><div class="route-dist">380 nm · ~1h 15m</div></div>
-      </div>
-      <div class="route-item">
-        <div><div class="route-airport">KDFW</div><div class="route-city">DFW International, TX</div></div>
-        <div class="route-line"><div class="route-dash"></div><svg width="22" height="14" viewBox="0 0 120 70" fill="none"><path d="M18 38 Q34 18 66 22 L116 12 L98 28 Q66 30 44 38 Z" fill="#c8860a"/><path d="M3 38 L22 32 L27 34 L8 43 Z" fill="#c8860a" opacity="0.7"/></svg><div class="route-dash-r"></div></div>
-        <div><div class="route-airport">KABQ</div><div class="route-city">Albuquerque Int'l, NM</div></div>
-        <div class="route-meta"><div class="route-aircraft">Citation CJ4</div><div class="route-dist">565 nm · ~1h 15m</div></div>
-      </div>
+<!-- ROUTE MAP -->
+<div class="routemap-full" id="map-section">
+  <div class="routemap-inner">
+    <div class="section-eyebrow">Flight Coverage</div>
+    <div class="section-title">ROUTE <span>MAP</span></div>
+    <div class="section-sub">Every route flown by Western Skies Air &mdash; sourced live from our flight records. Hover an airport dot to see its ICAO identifier.</div>
+    <div id="route-map"></div>
+    <div class="map-legend">
+      <span id="map-route-count">&mdash;</span> unique routes plotted &middot; data from flight log
     </div>
   </div>
 </div>
+
+<!-- LIVE OPS -->
+<section class="section" id="live-ops-panel">
+  <div class="section-eyebrow">Active Right Now</div>
+  <div class="section-title">LIVE <span>OPERATIONS</span></div>
+  <div class="section-sub">Pilots currently airborne on FSEconomy assignments.</div>
+  <div class="job-grid" id="live-ops-list"><div class="job-card empty">Loading...</div></div>
+</section>
 
 <!-- JOBS -->
 <section class="section" id="jobs">
@@ -857,7 +1019,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
   <div class="section-title">AVAILABLE <span>CHARTERS</span></div>
   <div class="section-sub">Live FSEconomy group assignments for the WSA team, updated when the sync server runs. <strong id="jobs-count">0</strong> jobs available.</div>
   <div class="job-grid" id="jobs-list">
-    <div class="job-card empty">Loading current jobs…</div>
+    <div class="job-card empty">Loading current jobs&hellip;</div>
   </div>
 </section>
 
@@ -902,7 +1064,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
       </div>
       <div class="info-block">
         <div class="info-label">Questions?</div>
-        <div class="info-val">Discord: <strong style="color:var(--gold);">#operations</strong> channel. Active 0800–2200 CST.</div>
+        <div class="info-val">Discord: <strong style="color:var(--gold);">#operations</strong> channel. Active 0800&ndash;2200 CST.</div>
       </div>
     </div>
   </div>
@@ -926,7 +1088,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
         </tr>
       </thead>
       <tbody id="log-tbody">
-        <tr><td colspan="6" style="color:var(--muted);text-align:center;padding:32px 0;">Connecting to live data…</td></tr>
+        <tr><td colspan="6" style="color:var(--muted);text-align:center;padding:32px 0;">Connecting to live data&hellip;</td></tr>
       </tbody>
     </table>
     </div>
@@ -940,17 +1102,17 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
     <div class="section-title">ABOUT <span>WSA</span></div>
     <div class="about-grid">
       <div class="about-text">
-        <p>Western Skies Air is a <strong>Texas-based virtual charter airline</strong> operating within FSEconomy. We focus on realistic, immersive general aviation operations across the Southern Plains — cargo runs, passenger charters, and executive flights.</p>
+        <p>Western Skies Air is a <strong>Texas-based virtual charter airline</strong> operating within FSEconomy. We focus on realistic, immersive general aviation operations across the Southern Plains &mdash; cargo runs, passenger charters, and executive flights.</p>
         <p>We value <strong>authentic flying</strong>: real weather, real procedures, real ATC communication, and aircraft that make sense for the region. Every flight logged here updates our live stats instantly.</p>
-        <p>Open to all skill levels. New pilots welcome — we'll get you familiar with FSEconomy and our ops culture quickly.</p>
+        <p>Open to all skill levels. New pilots welcome &mdash; we'll get you familiar with FSEconomy and our ops culture quickly.</p>
       </div>
       <div class="about-card">
-        <div class="section-eyebrow" style="margin-bottom:28px;">By the Numbers — Live</div>
+        <div class="section-eyebrow" style="margin-bottom:28px;">By the Numbers &mdash; Live</div>
         <div class="badge-grid">
-          <div class="badge"><div class="badge-num" id="badge-hours">—</div><div class="badge-label">Hours Flown</div></div>
-          <div class="badge"><div class="badge-num" id="badge-flights">—</div><div class="badge-label">Flights Logged</div></div>
-          <div class="badge"><div class="badge-num" id="badge-revenue">—</div><div class="badge-label">FSE Revenue</div></div>
-          <div class="badge"><div class="badge-num" id="badge-pilots">—</div><div class="badge-label">Active Pilots</div></div>
+          <div class="badge"><div class="badge-num" id="badge-hours">&mdash;</div><div class="badge-label">Hours Flown</div></div>
+          <div class="badge"><div class="badge-num" id="badge-flights">&mdash;</div><div class="badge-label">Flights Logged</div></div>
+          <div class="badge"><div class="badge-num" id="badge-revenue">&mdash;</div><div class="badge-label">FSE Revenue</div></div>
+          <div class="badge"><div class="badge-num" id="badge-pilots">&mdash;</div><div class="badge-label">Active Pilots</div></div>
         </div>
         <div style="margin-top:28px;padding-top:24px;border-top:1px solid var(--border);">
           <div class="info-label">Primary Simulator Platforms</div>
@@ -982,10 +1144,10 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
       <div>
         <div class="footer-col-title">Bases</div>
         <ul class="footer-links">
-          <li><a href="#">KABI — Abilene</a></li>
-          <li><a href="#">KDAL — Dallas Love</a></li>
-          <li><a href="#">KDFW — Fort Worth</a></li>
-          <li><a href="#">KSAT — San Antonio</a></li>
+          <li><a href="#">KABI &mdash; Abilene</a></li>
+          <li><a href="#">KDAL &mdash; Dallas Love</a></li>
+          <li><a href="#">KDFW &mdash; Fort Worth</a></li>
+          <li><a href="#">KSAT &mdash; San Antonio</a></li>
         </ul>
       </div>
       <div>
@@ -999,8 +1161,8 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
       </div>
     </div>
     <div class="footer-bottom">
-      <div class="footer-copy">© 2024–2025 Western Skies Air · Virtual Operations · All rights reserved</div>
-      <div class="footer-fse">A FSEconomy Virtual Airline · For Simulation Purposes Only</div>
+      <div class="footer-copy">© 2024&ndash;2025 Western Skies Air &middot; Virtual Operations &middot; All rights reserved</div>
+      <div class="footer-fse">A FSEconomy Virtual Airline &middot; For Simulation Purposes Only</div>
     </div>
   </div>
 </footer>
@@ -1035,7 +1197,7 @@ const items=['Live Data Powered by Firebase','File Your PIREP Today','Texas & So
 const inner=document.getElementById('ticker-inner');
 [...items,...items].forEach((t,i)=>{
   const d=document.createElement('span');d.className='ticker-item';
-  d.innerHTML=t+(i<items.length*2-1?' <span style="opacity:0.35">✦</span> ':'');
+  d.innerHTML=t+(i<items.length*2-1?' <span style="opacity:0.35">&#10022;</span> ':'');
   inner.appendChild(d);
 });
 
