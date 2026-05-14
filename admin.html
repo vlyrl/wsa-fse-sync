@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WSA — Admin Panel</title>
+<title>WSA â€” Admin Panel</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
 
 <script type="module">
@@ -17,7 +17,7 @@
   const db   = getDatabase(app);
   const auth = getAuth(app);
 
-  // ── Auth guard ──────────────────────────────────────────────
+  // â”€â”€ Auth guard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   onAuthStateChanged(auth, async user => {
     if (!user) { window.location.href = 'login.html'; return; }
     const ADMIN_UID = 'SVhJh3T9nfZT46hmaViKKxPhkbp1';
@@ -25,7 +25,7 @@
     const data = snap.exists() ? snap.val() : {};
     const isAdmin = user.uid === ADMIN_UID || data.admin === true;
     if (!isAdmin) {
-      window.location.href = 'western-skies-air-live_1.html';
+      window.location.href = 'index.html';
       return;
     }
     document.getElementById('admin-name').textContent = data.firstName || user.email;
@@ -34,10 +34,10 @@
 
   window.doSignOut = async () => {
     await signOut(auth);
-    window.location.href = 'western-skies-air-live_1.html';
+    window.location.href = 'index.html';
   };
 
-  // ── Toast ────────────────────────────────────────────────────
+  // â”€â”€ Toast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function toast(msg, err = false) {
     const t = document.getElementById('toast');
     t.textContent = msg;
@@ -46,7 +46,7 @@
     t._timer = setTimeout(() => t.classList.remove('show'), 3800);
   }
 
-  // ── Load all pilots ──────────────────────────────────────────
+  // â”€â”€ Load all pilots â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let allPilots = [];
 
   async function loadPilots() {
@@ -59,7 +59,7 @@
     await loadCertifications();
   }
 
-  // ── Certifications ──────────────────────────────────────────
+  // â”€â”€ Certifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let allCerts = {};
 
   async function loadCertifications() {
@@ -89,7 +89,7 @@
       </div>`).join('');
   }
 
-  // ── Assign modal ─────────────────────────────────────────────
+  // â”€â”€ Assign modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let assigningCertId = null;
 
   window.openAssignModal = async function(certId) {
@@ -108,7 +108,7 @@
 
     const notCertified = allPilots.filter(p => !certifiedUids.has(p.uid));
     document.getElementById('assign-pilot-select').innerHTML =
-      '<option value="">— Select a pilot —</option>' +
+      '<option value="">â€” Select a pilot â€”</option>' +
       notCertified.map(p => `<option value="${p.uid}">${p.firstName || ''} ${p.lastName || ''}</option>`).join('');
 
     const certified = allPilots.filter(p => certifiedUids.has(p.uid));
@@ -188,7 +188,7 @@
       <tr>
         <td>${p.firstName || ''} ${p.lastName || ''}</td>
         <td>${p.email || ''}</td>
-        <td>${p.location || '—'}</td>
+        <td>${p.location || 'â€”'}</td>
         <td><span style="color:${rank.color};font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.2em;text-transform:uppercase;">${rank.title}</span></td>
         <td>${Number(p.totalHours || 0).toFixed(1)} hrs</td>
         <td><span class="badge ${p.admin ? 'badge-admin' : 'badge-pilot'}">${p.admin ? 'Admin' : 'Pilot'}</span></td>
@@ -199,11 +199,11 @@
 
   function populateEmailDropdown(pilots) {
     const sel = document.getElementById('email-pilot-select');
-    sel.innerHTML = '<option value="">— Select a pilot —</option>' +
+    sel.innerHTML = '<option value="">â€” Select a pilot â€”</option>' +
       pilots.map(p => `<option value="${p.uid}">${p.firstName || ''} ${p.lastName || ''} (${p.email || ''})</option>`).join('');
   }
 
-  // ── Search ───────────────────────────────────────────────────
+  // â”€â”€ Search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   window.filterPilots = function() {
     const q = document.getElementById('search').value.toLowerCase();
     const filtered = allPilots.filter(p =>
@@ -212,7 +212,7 @@
     renderPilotTable(filtered);
   };
 
-  // ── Edit pilot modal ─────────────────────────────────────────
+  // â”€â”€ Edit pilot modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let editingUid = null;
 
   function getRank(hours, chiefPilot) {
@@ -248,7 +248,7 @@
       ? certEntries.map(([id, cert]) => `
           <div class="checkbox-row">
             <input type="checkbox" id="cert-cb-${id}" ${pilotCerts[id] ? 'checked' : ''}>
-            <label for="cert-cb-${id}">${cert.name}${cert.description ? ' — ' + cert.description : ''}</label>
+            <label for="cert-cb-${id}">${cert.name}${cert.description ? ' â€” ' + cert.description : ''}</label>
           </div>`).join('')
       : '<div style="color:var(--muted);font-size:12px;font-family:\'Barlow Condensed\',sans-serif;letter-spacing:.1em;">No certifications available. Create some in the Certifications card first.</div>';
     document.getElementById('modal').classList.add('open');
@@ -313,7 +313,7 @@
     }
   };
 
-  // ── Email sender ─────────────────────────────────────────────
+  // â”€â”€ Email sender â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   window.onEmailPilotChange = function() {
     const uid = document.getElementById('email-pilot-select').value;
     const pilot = allPilots.find(p => p.uid === uid);
@@ -340,7 +340,7 @@
     try {
       const res = await fetch('https://wsa-fse-sync-production.up.railway.app/send-welcome', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer wsa-7kM9pL2xN4qR8vJd3wT6fYcE' },
         body: JSON.stringify({ email, firstName })
       });
       const data = await res.json();
@@ -370,7 +370,7 @@
     try {
       const res = await fetch('https://wsa-fse-sync-production.up.railway.app/send-custom', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer wsa-7kM9pL2xN4qR8vJd3wT6fYcE' },
         body: JSON.stringify({ email, firstName, subject, body })
       });
       const data = await res.json();
@@ -419,6 +419,22 @@ nav { position: fixed; top: 0; left: 0; right: 0; z-index: 200; height: 60px; ba
 /* GRID */
 .admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
 @media (max-width: 900px) { .admin-grid { grid-template-columns: 1fr; } }
+
+@media (max-width: 768px) {
+  nav { padding: 0 16px; }
+  .nav-user { display: none; }
+  .nav-right { gap: 10px; }
+  .wrapper { padding: 80px 16px 60px; }
+  .page-header { margin-bottom: 28px; }
+  .stat-strip { gap: 12px; }
+  .stat-box { padding: 16px 18px; min-width: 0; flex: 1 1 calc(50% - 6px); }
+  .stat-box-num { font-size: 28px; }
+  .card { padding: 20px 16px; }
+  .table-section { padding: 20px 16px; }
+  .table-search { width: 100%; }
+  .table-header { flex-direction: column; align-items: stretch; }
+  .toast { bottom: 20px; right: 20px; left: 20px; text-align: center; }
+}
 
 /* CARDS */
 .card { background: var(--surface); border: 1px solid var(--border); padding: 28px; }
@@ -497,10 +513,10 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 <body>
 
 <nav>
-  <a class="nav-logo" href="western-skies-air-live_1.html">WESTERN <span>SKIES</span> AIR</a>
+  <a class="nav-logo" href="index.html">WESTERN <span>SKIES</span> AIR</a>
   <div class="nav-right">
     <span class="nav-badge">Admin</span>
-    <span class="nav-user">Signed in as <strong id="admin-name">—</strong></span>
+    <span class="nav-user">Signed in as <strong id="admin-name">â€”</strong></span>
     <button class="nav-btn" onclick="doSignOut()">Sign Out</button>
   </div>
 </nav>
@@ -515,7 +531,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   <!-- STAT STRIP -->
   <div class="stat-strip">
     <div class="stat-box">
-      <div class="stat-box-num" id="pilot-count">—</div>
+      <div class="stat-box-num" id="pilot-count">â€”</div>
       <div class="stat-box-label">Registered Pilots</div>
     </div>
     <div class="stat-box">
@@ -539,7 +555,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
       <div class="field">
         <label>Select Pilot (optional)</label>
         <select id="email-pilot-select" onchange="onEmailPilotChange()">
-          <option value="">— Select a pilot —</option>
+          <option value="">â€” Select a pilot â€”</option>
         </select>
       </div>
       <div class="field">
@@ -577,7 +593,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
       <div class="card-sub">Admin tools and links</div>
 
       <div style="display:flex;flex-direction:column;gap:10px;">
-        <a href="western-skies-air-live_1.html" class="btn btn-outline" style="text-align:center;text-decoration:none;">← Back to Main Site</a>
+        <a href="index.html" class="btn btn-outline" style="text-align:center;text-decoration:none;">â† Back to Main Site</a>
         <a href="roster.html" class="btn btn-outline" style="text-align:center;text-decoration:none;">View Pilot Roster</a>
         <a href="staff.html" class="btn btn-outline" style="text-align:center;text-decoration:none;">Staff Page</a>
       </div>
@@ -629,7 +645,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 <div style="max-width:1200px;margin:0 auto 24px;padding:0 32px;">
   <div class="card">
     <div class="card-title">Certifications</div>
-    <div class="card-sub">Create certification types — assign them to pilots via the Edit button</div>
+    <div class="card-sub">Create certification types â€” assign them to pilots via the Edit button</div>
     <div id="cert-list" style="margin-bottom:20px;"></div>
     <div class="divider"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;">
@@ -651,7 +667,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 <!-- EDIT MODAL -->
 <div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
   <div class="modal">
-    <button class="modal-close" onclick="closeModal()">✕</button>
+    <button class="modal-close" onclick="closeModal()">âœ•</button>
     <div class="modal-title">Edit Pilot</div>
     <div class="modal-sub">Changes save directly to Firebase</div>
 
@@ -708,7 +724,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 <!-- ASSIGN MODAL -->
 <div class="modal-overlay" id="assign-modal" onclick="if(event.target===this)closeAssignModal()">
   <div class="modal">
-    <button class="modal-close" onclick="closeAssignModal()">✕</button>
+    <button class="modal-close" onclick="closeAssignModal()">âœ•</button>
     <div class="modal-title" id="assign-cert-name">Certification</div>
     <div class="modal-sub" id="assign-cert-desc"></div>
 
@@ -716,7 +732,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Assign to Pilot</div>
       <div style="display:flex;gap:10px;align-items:center;">
         <select id="assign-pilot-select" style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:14px;padding:10px 14px;outline:none;">
-          <option value="">— Select a pilot —</option>
+          <option value="">â€” Select a pilot â€”</option>
         </select>
         <button class="btn btn-gold" onclick="assignCertToPilot()">Assign</button>
       </div>
@@ -744,12 +760,12 @@ async function triggerSync() {
     const res = await fetch('https://wsa-fse-sync-production.up.railway.app/sync', { method: 'POST' });
     const data = await res.json();
     if (data.success) {
-      result.textContent = '✅ Synced ' + data.aircraftSynced + ' aircraft · ' + new Date().toLocaleTimeString();
+      result.textContent = 'âœ… Synced ' + data.aircraftSynced + ' aircraft Â· ' + new Date().toLocaleTimeString();
     } else {
-      result.textContent = '❌ ' + (data.error || 'Sync failed');
+      result.textContent = 'âŒ ' + (data.error || 'Sync failed');
     }
   } catch (e) {
-    result.textContent = '❌ Sync server not reachable';
+    result.textContent = 'âŒ Sync server not reachable';
   }
   btn.disabled = false;
   btn.textContent = 'Trigger FSE Sync';

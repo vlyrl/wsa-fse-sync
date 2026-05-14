@@ -28,8 +28,8 @@ const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Validate environment variables first
-if (!process.env.FSE_USERNAME || !process.env.FSE_PASSWORD || !process.env.RESEND_API_KEY) {
-  console.error('❌ ERROR: FSE_USERNAME, FSE_PASSWORD, and RESEND_API_KEY environment variables must be set!');
+if (!process.env.FSE_USERNAME || !process.env.FSE_PASSWORD || !process.env.RESEND_API_KEY || !process.env.SYNC_SECRET) {
+  console.error('❌ ERROR: FSE_USERNAME, FSE_PASSWORD, RESEND_API_KEY, and SYNC_SECRET environment variables must be set!');
   process.exit(1);
 }
 
@@ -201,6 +201,7 @@ async function fetchJobs() {
         const cargo    = cell(cells, 7);
         const comment  = cell(cells, 8);
         const expires  = cell(cells, 9);
+        const pilot    = cell(cells, 10); // pilot name shown for enroute jobs
 
         // Status: "Locked" shows in col 0 if locked, otherwise Open
         const lockCell = cell(cells, 0);
@@ -221,7 +222,8 @@ async function fetchJobs() {
           cargo:    cargo,
           comment:  comment,
           expires:  expires,
-          status:   status
+          status:   status,
+          pilot:    pilot
         });
       });
     });
@@ -267,7 +269,7 @@ async function fetchData() {
     await page.goto(FSE_CONFIG.baseUrl + '/aircraft.jsp?id=' + FSE_CONFIG.groupId, { waitUntil: 'networkidle2', timeout: 30000 });
 
     // Wait for DataTable to render
-    await page.waitForTimeout(2000);
+    await new Promise(r => setTimeout(r, 2000));
 
     const html = await page.content();
     await browser.close();
@@ -314,6 +316,37 @@ async function fetchData() {
   }
 }
 
+function buildWelcomeEmail(firstName) {
+  const name = firstName || 'Pilot';
+  return `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0f0f0f;color:#ffffff;padding:40px;border-radius:8px;">
+      <div style="border-bottom:2px solid #c8860a;padding-bottom:20px;margin-bottom:30px;">
+        <h1 style="font-size:28px;margin:0;letter-spacing:2px;">WESTERN <span style="color:#c8860a;">SKIES</span> AIR</h1>
+        <p style="color:#888;font-size:12px;letter-spacing:3px;text-transform:uppercase;margin:6px 0 0;">Virtual Charter Airline</p>
+      </div>
+      <h2 style="color:#c8860a;font-size:20px;">Welcome aboard, ${name}!</h2>
+      <p style="color:#cccccc;line-height:1.7;">We're glad to have you on the team at Western Skies Air. To get started flying with us you'll need an FSEconomy account if you don't have one already — it's free and takes about 5 minutes to set up.</p>
+      <div style="background:#1c1c1c;border:1px solid #333;border-left:3px solid #c8860a;padding:20px;margin:24px 0;border-radius:4px;">
+        <p style="margin:0 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c8860a;">Step 1 — Create your FSEconomy account</p>
+        <a href="https://www.fseconomy.net/" style="color:#ffffff;font-size:16px;font-weight:bold;">https://www.fseconomy.net/</a>
+        <p style="margin:10px 0 0;color:#888;font-size:13px;">Sign up for a free account at FSEconomy World.</p>
+      </div>
+      <div style="background:#1c1c1c;border:1px solid #333;border-left:3px solid #c8860a;padding:20px;margin:24px 0;border-radius:4px;">
+        <p style="margin:0 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c8860a;">Step 2 — Contact Chief Pilot</p>
+        <p style="margin:0;color:#cccccc;font-size:14px;">Once your FSEconomy account is set up, email Chief Pilot Weston Koenig at <a href="mailto:sashootingwk@gmail.com" style="color:#c8860a;">sashootingwk@gmail.com</a> and he'll get you added to the group so you can access our aircraft and assignments.</p>
+      </div>
+      <div style="background:#1c1c1c;border:1px solid #333;border-left:3px solid #c8860a;padding:20px;margin:24px 0;border-radius:4px;">
+        <p style="margin:0 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c8860a;">Step 3 — Check the crew portal</p>
+        <p style="margin:0;color:#cccccc;font-size:14px;">Visit the website to see available charters, the fleet status, and the pilot roster. Everything updates live from FSEconomy.</p>
+      </div>
+      <p style="color:#cccccc;line-height:1.7;margin-top:30px;">Blue skies,<br><strong style="color:#ffffff;">Weston Koenig</strong><br><span style="color:#888;font-size:13px;">Chief Pilot &amp; Director of Operations · Western Skies Air</span></p>
+      <div style="border-top:1px solid #333;margin-top:30px;padding-top:20px;">
+        <p style="color:#555;font-size:11px;margin:0;">You received this email because you registered at Western Skies Air. Questions? Reply to sashootingwk@gmail.com</p>
+      </div>
+    </div>
+  `;
+}
+
 // EXPRESS SERVER
 const app = express();
 app.use(express.json());
@@ -321,54 +354,37 @@ app.use(express.json());
 app.use(function(req, res, next) {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
+
+function requireSecret(req, res, next) {
+  const auth = req.headers['authorization'] || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (token !== process.env.SYNC_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+}
 
 app.get('/health', function(req, res) {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 
-app.post('/send-welcome', async function(req, res) {
+app.post('/send-welcome', requireSecret, async function(req, res) {
   try {
     const { email, firstName } = req.body;
     if (!email) return res.status(400).json({ error: 'email is required' });
 
-    const name = firstName || 'Pilot';
     console.log('📧 Manual welcome email to ' + email + '...');
 
     await resend.emails.send({
       from: 'onboarding@resend.dev',
       to: email,
       subject: 'Welcome to Western Skies Air — Next Steps',
-      html: `
-        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0f0f0f;color:#ffffff;padding:40px;border-radius:8px;">
-          <div style="border-bottom:2px solid #c8860a;padding-bottom:20px;margin-bottom:30px;">
-            <h1 style="font-size:28px;margin:0;letter-spacing:2px;">WESTERN <span style="color:#c8860a;">SKIES</span> AIR</h1>
-            <p style="color:#888;font-size:12px;letter-spacing:3px;text-transform:uppercase;margin:6px 0 0;">Virtual Charter Airline</p>
-          </div>
-          <h2 style="color:#c8860a;font-size:20px;">Welcome aboard, ${name}!</h2>
-          <p style="color:#cccccc;line-height:1.7;">We're glad to have you on the team at Western Skies Air. To get started flying with us you'll need an FSEconomy account if you don't have one already — it's free and takes about 5 minutes to set up.</p>
-          <div style="background:#1c1c1c;border:1px solid #333;border-left:3px solid #c8860a;padding:20px;margin:24px 0;border-radius:4px;">
-            <p style="margin:0 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c8860a;">Step 1 — Create your FSEconomy account</p>
-            <a href="https://www.fseconomy.net/" style="color:#ffffff;font-size:16px;font-weight:bold;">https://www.fseconomy.net/</a>
-            <p style="margin:10px 0 0;color:#888;font-size:13px;">Sign up for a free account at FSEconomy World.</p>
-          </div>
-          <div style="background:#1c1c1c;border:1px solid #333;border-left:3px solid #c8860a;padding:20px;margin:24px 0;border-radius:4px;">
-            <p style="margin:0 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c8860a;">Step 2 — Contact Chief Pilot</p>
-            <p style="margin:0;color:#cccccc;font-size:14px;">Once your FSEconomy account is set up, email Chief Pilot Weston Koenig at <a href="mailto:sashootingwk@gmail.com" style="color:#c8860a;">sashootingwk@gmail.com</a> and he'll get you added to the group so you can access our aircraft and assignments.</p>
-          </div>
-          <div style="background:#1c1c1c;border:1px solid #333;border-left:3px solid #c8860a;padding:20px;margin:24px 0;border-radius:4px;">
-            <p style="margin:0 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c8860a;">Step 3 — Check the crew portal</p>
-            <p style="margin:0;color:#cccccc;font-size:14px;">Visit the website to see available charters, the fleet status, and the pilot roster. Everything updates live from FSEconomy.</p>
-          </div>
-          <p style="color:#cccccc;line-height:1.7;margin-top:30px;">Blue skies,<br><strong style="color:#ffffff;">Weston Koenig</strong><br><span style="color:#888;font-size:13px;">Chief Pilot &amp; Director of Operations · Western Skies Air</span></p>
-          <div style="border-top:1px solid #333;margin-top:30px;padding-top:20px;">
-            <p style="color:#555;font-size:11px;margin:0;">Questions? Reply to sashootingwk@gmail.com</p>
-          </div>
-        </div>
-      `
+      html: buildWelcomeEmail(firstName)
     });
 
     console.log('✅ Welcome email sent to ' + email);
@@ -380,11 +396,12 @@ app.post('/send-welcome', async function(req, res) {
 });
 
 
-app.post('/send-custom', async function(req, res) {
+app.post('/send-custom', requireSecret, async function(req, res) {
   try {
     const { email, firstName, subject, body } = req.body;
     if (!email || !subject || !body) return res.status(400).json({ error: 'email, subject and body are required' });
     const name = firstName || 'Pilot';
+    const safeBody = String(body).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     console.log('📧 Custom email to ' + email + ' — ' + subject);
     await resend.emails.send({
       from: 'onboarding@resend.dev',
@@ -397,7 +414,7 @@ app.post('/send-custom', async function(req, res) {
             <p style="color:#888;font-size:12px;letter-spacing:3px;text-transform:uppercase;margin:6px 0 0;">Virtual Charter Airline</p>
           </div>
           <p style="color:#cccccc;line-height:1.7;">Hi ${name},</p>
-          <div style="color:#cccccc;line-height:1.8;white-space:pre-wrap;">${body}</div>
+          <div style="color:#cccccc;line-height:1.8;white-space:pre-wrap;">${safeBody}</div>
           <p style="color:#cccccc;line-height:1.7;margin-top:30px;">Blue skies,<br><strong style="color:#ffffff;">Weston Koenig</strong><br><span style="color:#888;font-size:13px;">Chief Pilot &amp; Director of Operations · Western Skies Air</span></p>
           <div style="border-top:1px solid #333;margin-top:30px;padding-top:20px;">
             <p style="color:#555;font-size:11px;margin:0;">Questions? Reply to sashootingwk@gmail.com</p>
@@ -413,13 +430,20 @@ app.post('/send-custom', async function(req, res) {
   }
 });
 
-app.post('/sync', async function(req, res) {
+let syncInProgress = false;
+
+app.post('/sync', requireSecret, async function(req, res) {
+  if (syncInProgress) {
+    return res.status(429).json({ error: 'Sync already in progress' });
+  }
+  syncInProgress = true;
   try {
     initFirebase();
     console.log('\n🔄 Sync request at', new Date().toLocaleTimeString());
 
     const loginOk = await loginToFSE();
     if (!loginOk) {
+      syncInProgress = false;
       return res.status(401).json({ error: 'FSEconomy login failed' });
     }
 
@@ -432,6 +456,8 @@ app.post('/sync', async function(req, res) {
   } catch (error) {
     console.error('❌ Sync error:', error.message);
     res.status(500).json({ error: error.message });
+  } finally {
+    syncInProgress = false;
   }
 });
 
@@ -646,46 +672,7 @@ async function checkNewPilots() {
           from: 'onboarding@resend.dev',
           to: email,
           subject: 'Welcome to Western Skies Air — Next Steps',
-          html: `
-            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0f0f0f;color:#ffffff;padding:40px;border-radius:8px;">
-              <div style="border-bottom:2px solid #c8860a;padding-bottom:20px;margin-bottom:30px;">
-                <h1 style="font-size:28px;margin:0;letter-spacing:2px;">WESTERN <span style="color:#c8860a;">SKIES</span> AIR</h1>
-                <p style="color:#888;font-size:12px;letter-spacing:3px;text-transform:uppercase;margin:6px 0 0;">Virtual Charter Airline</p>
-              </div>
-
-              <h2 style="color:#c8860a;font-size:20px;">Welcome aboard, ${firstName}!</h2>
-
-              <p style="color:#cccccc;line-height:1.7;">
-                We're glad to have you on the team at Western Skies Air. To get started flying with us you'll need an FSEconomy account if you don't have one already — it's free and takes about 5 minutes to set up.
-              </p>
-
-              <div style="background:#1c1c1c;border:1px solid #333;border-left:3px solid #c8860a;padding:20px;margin:24px 0;border-radius:4px;">
-                <p style="margin:0 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c8860a;">Step 1 — Create your FSEconomy account</p>
-                <a href="https://www.fseconomy.net/" style="color:#ffffff;font-size:16px;font-weight:bold;">https://www.fseconomy.net/</a>
-                <p style="margin:10px 0 0;color:#888;font-size:13px;">Sign up for a free account at FSEconomy World.</p>
-              </div>
-
-              <div style="background:#1c1c1c;border:1px solid #333;border-left:3px solid #c8860a;padding:20px;margin:24px 0;border-radius:4px;">
-                <p style="margin:0 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c8860a;">Step 2 — Contact Chief Pilot</p>
-                <p style="margin:0;color:#cccccc;font-size:14px;">Once your FSEconomy account is set up, email Chief Pilot Weston Koenig at <a href="mailto:sashootingwk@gmail.com" style="color:#c8860a;">sashootingwk@gmail.com</a> and he'll get you added to the group so you can access our aircraft and assignments.</p>
-              </div>
-
-              <div style="background:#1c1c1c;border:1px solid #333;border-left:3px solid #c8860a;padding:20px;margin:24px 0;border-radius:4px;">
-                <p style="margin:0 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c8860a;">Step 3 — Check the crew portal</p>
-                <p style="margin:0;color:#cccccc;font-size:14px;">Visit the website to see available charters, the fleet status, and the pilot roster. Everything updates live from FSEconomy.</p>
-              </div>
-
-              <p style="color:#cccccc;line-height:1.7;margin-top:30px;">
-                Blue skies,<br>
-                <strong style="color:#ffffff;">Weston Koenig</strong><br>
-                <span style="color:#888;font-size:13px;">Chief Pilot &amp; Director of Operations · Western Skies Air</span>
-              </p>
-
-              <div style="border-top:1px solid #333;margin-top:30px;padding-top:20px;">
-                <p style="color:#555;font-size:11px;margin:0;">You received this email because you registered at Western Skies Air. Questions? Reply to sashootingwk@gmail.com</p>
-              </div>
-            </div>
-          `
+          html: buildWelcomeEmail(firstName)
         });
         console.log('   ✅ Welcome email sent to ' + email);
       } catch (emailErr) {
