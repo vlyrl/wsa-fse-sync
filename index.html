@@ -201,11 +201,13 @@
     const tbody = document.getElementById('log-tbody');
     const rows = [];
     if (!snap.exists()) {
+      console.log('[WSA] Firebase pireps: empty');
       if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:32px 0;">No flights logged yet.</td></tr>';
       drawRoutes(rows);
       return;
     }
     snap.forEach(child => rows.push({ key: child.key, ...child.val() }));
+    console.log('[WSA] Firebase pireps:', rows.length, 'records', rows.map(r => r.dep + '→' + r.arr));
     rows.sort((a, b) => b.date.localeCompare(a.date));
     drawRoutes(rows);
 

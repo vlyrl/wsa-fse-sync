@@ -1,6 +1,7 @@
 export const firebaseConfig = {
   apiKey: "AIzaSyCGHP1zInIv94yKym_nzpFrBRz6dtYwlps",
   authDomain: "wsair-f3c09.firebaseapp.com",
+  databaseURL: "https://wsair-f3c09-default-rtdb.firebaseio.com",
   projectId: "wsair-f3c09",
   storageBucket: "wsair-f3c09.firebasestorage.app",
   messagingSenderId: "712143874991",
