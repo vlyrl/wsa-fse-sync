@@ -757,7 +757,11 @@ async function triggerSync() {
   btn.textContent = 'Syncing...';
   result.textContent = '';
   try {
+<<<<<<< HEAD
+    const res = await fetch('https://wsa-fse-sync-production.up.railway.app/sync', { method: 'POST', headers: { 'Authorization': 'Bearer wsa-7kM9pL2xN4qR8vJd3wT6fYcE' } });
+=======
     const res = await fetch('https://wsa-fse-sync-production.up.railway.app/sync', { method: 'POST' });
+>>>>>>> 9bd141af511256ac9233775698fa0804aa3bf587
     const data = await res.json();
     if (data.success) {
       result.textContent = 'âœ… Synced ' + data.aircraftSynced + ' aircraft Â· ' + new Date().toLocaleTimeString();
