@@ -551,16 +551,13 @@
       usedAirports[arr] = ac;
     });
 
-    Object.entries(usedAirports).forEach(([icao, c]) => {
-      L.circleMarker(c,{
-        radius:5, fillColor:'#f0a830', color:'#c8860a',
-        weight:1.5, opacity:1, fillOpacity:0.9
-      }).bindTooltip(icao,{className:'map-tip',direction:'top',offset:[0,-6]}).addTo(leafletMap);
-    });
-
-    console.log('[WSA Map] Routes drawn:', routeCount, '| Missing coords:', [...missing]);
     const countEl = document.getElementById('map-route-count');
     if (countEl) countEl.textContent = String(routeCount);
+
+    const missingEl = document.getElementById('map-missing');
+    if (missingEl) {
+      missingEl.textContent = missing.size ? ' · needs coords: ' + [...missing].join(', ') : '';
+    }
 
     const allCoords = Object.values(usedAirports);
     if (allCoords.length > 1) {
@@ -998,10 +995,10 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
   <div class="routemap-inner">
     <div class="section-eyebrow">Flight Coverage</div>
     <div class="section-title">ROUTE <span>MAP</span></div>
-    <div class="section-sub">Every route flown by Western Skies Air &mdash; sourced live from our flight records. Hover an airport dot to see its ICAO identifier.</div>
+    <div class="section-sub">Every route flown by Western Skies Air &mdash; sourced live from our flight records.</div>
     <div id="route-map"></div>
     <div class="map-legend">
-      <span id="map-route-count">&mdash;</span> unique routes plotted &middot; data from flight log
+      <span id="map-route-count">&mdash;</span> unique routes plotted &middot; data from flight log<span id="map-missing"></span>
     </div>
   </div>
 </div>
