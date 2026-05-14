@@ -387,7 +387,10 @@
     btn.disabled = true; btn.textContent = 'Syncing...';
     result.textContent = '';
     try {
-      const res = await fetch('https://wsa-fse-sync-production.up.railway.app/sync', { method: 'POST' });
+      const res = await fetch('https://wsa-fse-sync-production.up.railway.app/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer wsa-7kM9pL2xN4qR8vJd3wT6fYcE' }
+      });
       const data = await res.json();
       result.textContent = data.success
         ? 'Synced ' + (data.aircraftSynced || 0) + ' aircraft &middot; ' + new Date().toLocaleTimeString()
