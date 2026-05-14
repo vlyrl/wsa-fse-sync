@@ -117,8 +117,9 @@
 
     onValue(ref(db, 'jobsAvailable'), snap => {
       const allJobs = snap.exists() ? Object.values(snap.val() || {}) : [];
-      const enroute  = allJobs.filter(j => (j.location || '').toLowerCase().includes('enroute'));
-      const available = allJobs.filter(j => !(j.location || '').toLowerCase().includes('enroute'));
+      const isEnroute = j => { const l = (j.location || '').toLowerCase(); return l.includes('enroute') || l.includes('en route') || l.includes('en-route') || l.includes('[en'); };
+      const enroute  = allJobs.filter(j => isEnroute(j));
+      const available = allJobs.filter(j => !isEnroute(j));
 
       // ── Live Ops panel ──
       const livePanel = document.getElementById('live-ops-panel');
@@ -143,7 +144,7 @@
               + '</div>';
           }).join('');
         } else {
-          livePanel.style.display = 'none';
+          liveList.innerHTML = '<div class="job-card empty">No active flights right now.</div>';
         }
       }
 
@@ -804,11 +805,11 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
 </div>
 
 <!-- LIVE OPS -->
-<section class="section" id="live-ops-panel" style="display:none;">
+<section class="section" id="live-ops-panel">
   <div class="section-eyebrow">Active Right Now</div>
   <div class="section-title">LIVE <span>OPERATIONS</span></div>
   <div class="section-sub">Pilots currently airborne on FSEconomy assignments.</div>
-  <div class="job-grid" id="live-ops-list"></div>
+  <div class="job-grid" id="live-ops-list"><div class="job-card empty">Loading...</div></div>
 </section>
 
 <!-- JOBS -->
