@@ -544,29 +544,17 @@ async function loadFSEAirportCoords() {
   }
 }
 
-// FETCH FLIGHT LOG — uses logviewer.jsp (the group route map page) via Puppeteer
+// FETCH FLIGHT LOG from log.jsp via Puppeteer (DataTables renders all rows)
 async function fetchLog() {
   let browser;
   try {
     if (!db) initFirebase();
-    console.log('📡 Fetching flight log from logviewer...');
+    console.log('📡 Fetching flight log (log.jsp via Puppeteer)...');
 
     const puppeteer = require('puppeteer');
     browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
-
-    // Capture any JSON XHR responses — logviewer may load route data via Ajax
-    const capturedJSON = [];
-    page.on('response', async function(res) {
-      try {
-        const ct = res.headers()['content-type'] || '';
-        if (ct.includes('json')) {
-          const data = await res.json();
-          capturedJSON.push({ url: res.url(), data: data });
-        }
-      } catch(e) {}
-    });
 
     const cookiePairs = sessionCookies.split('; ').map(function(pair) {
       const idx = pair.indexOf('=');
@@ -574,61 +562,44 @@ async function fetchLog() {
     });
     await page.setCookie(...cookiePairs);
 
-    // Navigate to the logviewer (group route map)
-    await page.goto('https://server.fseconomy.net/logviewer.jsp?group=' + FSE_CONFIG.groupId, {
+    await page.goto(FSE_CONFIG.baseUrl + '/log.jsp?groupid=' + FSE_CONFIG.groupId, {
       waitUntil: 'networkidle2', timeout: 30000
     });
-    await new Promise(r => setTimeout(r, 3000));
+    await new Promise(r => setTimeout(r, 2000));
 
-    // Extract window variables and embedded script data that contain flight/route info
-    const pageData = await page.evaluate(function() {
-      var result = { windowVars: [], scripts: [], tableHTML: '' };
+    // Try to set DataTables to show all entries
+    try {
+      await page.evaluate(function() {
+        var sel = document.querySelector('select[name$="_length"]');
+        if (sel) {
+          sel.value = '-1';
+          sel.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      });
+      await new Promise(r => setTimeout(r, 2000));
+    } catch(e) {}
 
-      // Scan all window variables for arrays of objects that look like flight data
-      try {
-        Object.keys(window).forEach(function(key) {
-          try {
-            var val = window[key];
-            if (Array.isArray(val) && val.length > 0 && val[0] && typeof val[0] === 'object') {
-              var sample = JSON.stringify(val[0]).toLowerCase();
-              if (sample.includes('lat') || sample.includes('from') || sample.includes('icao') || sample.includes('dep')) {
-                result.windowVars.push({ name: key, length: val.length, sample: val[0] });
-              }
-            }
-          } catch(e) {}
-        });
-      } catch(e) {}
-
-      // Scan inline scripts for embedded coordinate/route data
-      try {
-        Array.from(document.querySelectorAll('script')).forEach(function(s) {
-          var t = s.textContent || '';
-          if (t.length > 50 && (t.includes('lat') || t.includes('Lat')) && (t.includes('lng') || t.includes('lon') || t.includes('Lng'))) {
-            result.scripts.push(t.substring(0, 3000));
-          }
-        });
-      } catch(e) {}
-
-      // Grab the full table HTML if one exists
-      try {
-        var tbl = document.querySelector('table');
-        if (tbl) result.tableHTML = tbl.outerHTML.substring(0, 5000);
-      } catch(e) {}
-
-      return result;
+    // Dump the first table's full HTML so we can see exact structure
+    const tableDebug = await page.evaluate(function() {
+      var tables = Array.from(document.querySelectorAll('table'));
+      return tables.map(function(t) {
+        return { headers: Array.from(t.querySelectorAll('th')).map(function(th) { return th.innerText.trim(); }),
+                 rowCount: t.querySelectorAll('tr').length,
+                 sample: t.outerHTML.substring(0, 2000) };
+      });
     });
-
-    console.log('📊 Window vars with flight-like data:', JSON.stringify(pageData.windowVars).substring(0, 1000));
-    console.log('📊 Inline scripts with coords (' + pageData.scripts.length + '):', JSON.stringify(pageData.scripts[0] || '').substring(0, 500));
-    console.log('📊 JSON XHR responses:', capturedJSON.map(function(r) { return r.url; }).join(', ') || 'none');
-    console.log('📊 Table HTML sample:', pageData.tableHTML.substring(0, 300));
+    console.log('📊 Tables found:', tableDebug.length);
+    tableDebug.forEach(function(t, i) {
+      console.log('📊 Table[' + i + '] headers:', JSON.stringify(t.headers), '| rows:', t.rowCount);
+      console.log('📊 Table[' + i + '] HTML:', t.sample);
+    });
 
     const html = await page.content();
     await browser.close();
     browser = null;
 
     if (html.includes('Log in') && !html.includes('Log out')) {
-      console.warn('⚠️  Logviewer returned login screen — session expired');
+      console.warn('⚠️  Log page returned login screen — session expired');
       return { flights: 0, hoursFlown: 0 };
     }
 
