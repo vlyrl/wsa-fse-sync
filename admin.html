@@ -18,26 +18,39 @@
   const auth = getAuth(app);
 
   // â”€â”€ Auth guard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  onAuthStateChanged(auth, async user => {
+  const ADMIN_UID = 'SVhJh3T9nfZT46hmaViKKxPhkbp1';
+
+  async function initWithUser(user) {
     if (!user) { window.location.href = 'login.html'; return; }
-    const ADMIN_UID = 'SVhJh3T9nfZT46hmaViKKxPhkbp1';
     try {
       const snap = await get(ref(db, `users/${user.uid}`));
       const data = snap.exists() ? snap.val() : {};
       const isAdmin = user.uid === ADMIN_UID || data.admin === true;
-      if (!isAdmin) {
-        window.location.href = 'index.html';
-        return;
-      }
+      if (!isAdmin) { window.location.href = 'index.html'; return; }
       document.getElementById('admin-name').textContent = data.firstName || user.email;
-      loadPilots();
     } catch (e) {
       console.error('Auth/init error:', e);
       document.getElementById('admin-name').textContent = user.email;
-      document.getElementById('pilot-tbody').innerHTML = `<tr><td colspan="7" style="color:#c0392b;">Init error: ${e.message}</td></tr>`;
-      loadPilots();
     }
+    loadPilots();
+  }
+
+  let authResolved = false;
+  onAuthStateChanged(auth, user => {
+    if (authResolved) return;
+    authResolved = true;
+    initWithUser(user);
   });
+
+  // Fallback: if onAuthStateChanged doesn't fire within 5s, use currentUser
+  setTimeout(() => {
+    if (authResolved) return;
+    authResolved = true;
+    const user = auth.currentUser;
+    document.getElementById('pilot-tbody').innerHTML =
+      `<tr><td colspan="7" style="color:#f0a830;">Auth timed out — using currentUser: ${user ? user.email : 'null'}</td></tr>`;
+    initWithUser(user);
+  }, 5000);
 
   window.doSignOut = async () => {
     await signOut(auth);
