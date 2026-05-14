@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Western Skies Air — Pilot Profile</title>
+<title>Western Skies Air â€” Pilot Profile</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
 
 <script type="module">
@@ -33,7 +33,7 @@
 
   window.signOutAndRedirect = async function() {
     await signOut(auth);
-    window.location.href = 'western-skies-air-live_1.html';
+    window.location.href = 'index.html';
   };
 
   async function loadProfile() {
@@ -59,7 +59,7 @@
       const rank  = getRank(data.totalHours, data.chiefPilot);
       const hours = Number(data.totalHours || 0).toFixed(1);
 
-      document.title = `${name} — Western Skies Air`;
+      document.title = `${name} â€” Western Skies Air`;
       document.getElementById('pilot-name').textContent  = name;
       document.getElementById('pilot-rank').textContent  = rank.title;
       document.getElementById('pilot-rank').style.color  = rank.color;
@@ -79,7 +79,7 @@
       const certEl = document.getElementById('pilot-certs');
       if (earnedIds.length) {
         certEl.innerHTML = earnedIds.map(id =>
-          `<div class="cert-badge">${certDefs[id].name}${certDefs[id].description ? '<span class="cert-desc"> — ' + certDefs[id].description + '</span>' : ''}</div>`
+          `<div class="cert-badge">${certDefs[id].name}${certDefs[id].description ? '<span class="cert-desc"> â€” ' + certDefs[id].description + '</span>' : ''}</div>`
         ).join('');
       } else {
         certEl.innerHTML = '<div style="color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;font-size:13px;letter-spacing:.1em;">No certifications yet.</div>';
@@ -97,7 +97,7 @@
           flightEl.innerHTML = myFlights.map(p => `
             <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);font-family:'Barlow Condensed',sans-serif;font-size:13px;">
               <div style="color:var(--muted);min-width:110px;">${p.date}</div>
-              <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:.05em;">${p.dep} → ${p.arr}</div>
+              <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:.05em;">${p.dep} â†’ ${p.arr}</div>
               <div style="color:var(--gold);">${p.aircraft}</div>
               <div style="color:var(--muted);">${Number(p.blockTime).toFixed(1)} hrs</div>
               ${p.earnings ? `<div style="color:#81c784;">$${Number(p.earnings).toLocaleString()}</div>` : ''}
@@ -159,15 +159,26 @@ nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba
 .back-link:hover { color: var(--gold); }
 .toast { position: fixed; bottom: 32px; right: 32px; background: var(--gold); color: #000; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600; padding: 14px 24px; transform: translateY(100px); opacity: 0; transition: transform 0.4s, opacity 0.4s; z-index: 999; }
 .toast.show { transform: translateY(0); opacity: 1; }
-@media (max-width: 768px) { .container { margin-top: 100px; } nav { padding: 0 18px; } .card { padding: 28px; } }
+@media (max-width: 768px) {
+  nav { padding: 0 16px; }
+  .nav-actions { gap: 8px; }
+  .nav-cta { padding: 7px 14px; font-size: 10px; }
+  .container { margin-top: 96px; padding: 0 16px; }
+  .card { padding: 20px 16px; }
+  .stat-row { gap: 20px; }
+  /* Flight history rows — stack on small screens */
+  #pilot-flights > div { flex-wrap: wrap; gap: 6px; }
+  #pilot-flights > div > div { min-width: unset; }
+  .toast { bottom: 20px; right: 20px; left: 20px; text-align: center; }
+}
 </style>
 </head>
 <body>
 
 <nav>
-  <a class="nav-logo" href="western-skies-air-live_1.html">WESTERN <span>SKIES</span> AIR</a>
+  <a class="nav-logo" href="index.html">WESTERN <span>SKIES</span> AIR</a>
   <div class="nav-actions">
-    <a class="nav-cta" href="roster.html">← Roster</a>
+    <a class="nav-cta" href="roster.html">â† Roster</a>
     <a id="nav-signout-btn" class="nav-cta" href="#" onclick="signOutAndRedirect(); return false;" style="display:none;">Sign Out</a>
   </div>
 </nav>
@@ -177,25 +188,25 @@ nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba
   <div id="error-msg" style="display:none;color:#f87171;font-family:'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:.2em;text-transform:uppercase;"></div>
 
   <div id="profile-content" style="display:none;">
-    <a class="back-link" href="roster.html">← Back to Roster</a>
+    <a class="back-link" href="roster.html">â† Back to Roster</a>
 
     <div class="card">
       <div class="eyebrow">Pilot Profile</div>
-      <div class="pilot-name" id="pilot-name">—</div>
+      <div class="pilot-name" id="pilot-name">â€”</div>
 
       <div class="stat-row">
         <div class="stat-item">
           <div class="stat-label">Rank</div>
-          <div class="stat-value" id="pilot-rank">—</div>
+          <div class="stat-value" id="pilot-rank">â€”</div>
         </div>
         <div class="stat-item">
           <div class="stat-label">Total Hours</div>
-          <div class="stat-value" style="color:var(--gold);" id="pilot-hours">—</div>
+          <div class="stat-value" style="color:var(--gold);" id="pilot-hours">â€”</div>
         </div>
       </div>
 
       <div class="base-row" id="base-row">
-        <span style="color:var(--gold);">✦</span>
+        <span style="color:var(--gold);">âœ¦</span>
         <span>Home Base: <strong id="pilot-base"></strong></span>
       </div>
 

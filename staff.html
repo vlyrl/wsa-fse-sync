@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Western Skies Air — Staff</title>
+<title>Western Skies Air â€” Staff</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -17,7 +17,7 @@
   window.signOutAndRedirect = async function() {
     try {
       await signOut(auth);
-      window.location.href = 'western-skies-air-live_1.html';
+      window.location.href = 'index.html';
     } catch (error) {
       console.error('Sign out failed:', error);
     }
@@ -50,14 +50,21 @@ nav { position:fixed; top:0; left:0; right:0; z-index:100; display:flex; align-i
 .contact-card h2 { font-family:'Bebas Neue',sans-serif; font-size:24px; margin-bottom:10px; }
 .contact-card p { font-family:'Barlow',sans-serif; font-size:15px; color:var(--text); line-height:1.7; }
 .contact-strong { color:var(--gold); }
-@media (max-width:768px) { .main { margin-top:100px; } .hero-card { padding:28px; } }
+@media (max-width:768px) {
+  nav { padding: 0 16px; }
+  .nav-actions a:nth-child(2) { display: none; }
+  .nav-actions { gap: 8px; }
+  .nav-cta { padding: 7px 14px; font-size: 10px; }
+  .main { margin-top: 96px; padding: 0 16px; }
+  .hero-card { padding: 24px 20px; border-radius: 16px; }
+}
 </style>
 </head>
 <body>
 <nav>
-  <a class="nav-logo" href="western-skies-air-live_1.html">WESTERN <span>SKIES</span> AIR</a>
+  <a class="nav-logo" href="index.html">WESTERN <span>SKIES</span> AIR</a>
   <div class="nav-actions">
-    <a class="nav-cta" href="western-skies-air-live_1.html">Back to Site</a>
+    <a class="nav-cta" href="index.html">Back to Site</a>
     <a class="nav-cta" href="profile.html">Profile</a>
     <a id="signout-btn" class="nav-cta" href="#" onclick="signOutAndRedirect(); return false;" style="display:none;">Sign Out</a>
   </div>
@@ -71,7 +78,7 @@ nav { position:fixed; top:0; left:0; right:0; z-index:100; display:flex; align-i
         <h2>Chief Pilot & Director of Operations & Web Master</h2>
         <p><span class="contact-strong">Base:</span> San Angelo Regional (KSJT)</p>
         <p><span class="contact-strong">Email:</span> sashootingwk@gmail.com</p>
-        <p><span class="contact-strong">Affiliations:</span> Texas & Southern Plains Charter · FSEconomy</p>
+        <p><span class="contact-strong">Affiliations:</span> Texas & Southern Plains Charter Â· FSEconomy</p>
       </div>
     </div>
   </div>

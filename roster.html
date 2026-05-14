@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Western Skies Air — Pilot Roster</title>
+<title>Western Skies Air â€” Pilot Roster</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
 
 <script type="module">
@@ -93,7 +93,7 @@
     try {
       await signOut(auth);
       showToast('Signed out successfully');
-      setTimeout(() => window.location.href = 'western-skies-air-live_1.html', 400);
+      setTimeout(() => window.location.href = 'index.html', 400);
     } catch (error) {
       console.error('Sign out failed:', error);
       showToast('Sign out failed', true);
@@ -143,14 +143,23 @@ nav { position:fixed; top:0; left:0; right:0; z-index:100; background:rgba(10,10
 .roster-table tr:hover { background:rgba(255,255,255,0.04); }
 .toast { position:fixed; bottom:32px; right:32px; background:var(--gold); color:#000; font-family:'Barlow Condensed',sans-serif; font-size:12px; letter-spacing:0.2em; text-transform:uppercase; font-weight:600; padding:14px 24px; transform:translateY(100px); opacity:0; transition:transform 0.4s,opacity 0.4s; z-index:999; }
 .toast.show { transform:translateY(0); opacity:1; }
-@media (max-width:768px) { .container { margin-top:100px; } nav { padding:0 18px; } .roster-summary { flex-direction:column; align-items:flex-start; } }
+@media (max-width:768px) {
+  nav { padding: 0 16px; }
+  .nav-actions a:not(:first-child):not(:last-child) { display: none; }
+  .nav-actions { gap: 8px; }
+  .nav-cta { padding: 7px 14px; font-size: 10px; }
+  .container { margin-top: 96px; padding: 0 16px; }
+  .roster-card { padding: 20px 16px; }
+  .roster-summary { flex-direction: column; align-items: flex-start; }
+  .toast { bottom: 20px; right: 20px; left: 20px; text-align: center; }
+}
 </style>
 </head>
 <body>
 <nav>
-  <a class="nav-logo" href="western-skies-air-live_1.html">WESTERN <span>SKIES</span> AIR</a>
+  <a class="nav-logo" href="index.html">WESTERN <span>SKIES</span> AIR</a>
   <div class="nav-actions">
-    <a class="nav-cta" href="western-skies-air-live_1.html">Back to Site</a>
+    <a class="nav-cta" href="index.html">Back to Site</a>
     <a class="nav-cta" href="profile.html">Profile</a>    <a class="nav-cta" href="staff.html">Staff</a>    <a id="nav-signout-btn" class="nav-cta" href="#" onclick="signOutAndRedirect(); return false;" style="display:none;">Sign Out</a>
   </div>
 </nav>
@@ -177,7 +186,7 @@ nav { position:fixed; top:0; left:0; right:0; z-index:100; background:rgba(10,10
           </tr>
         </thead>
         <tbody id="roster-body">
-          <tr><td colspan="6">Loading roster…</td></tr>
+          <tr><td colspan="6">Loading rosterâ€¦</td></tr>
         </tbody>
       </table>
     </div>
