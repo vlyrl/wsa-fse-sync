@@ -544,34 +544,47 @@ async function loadFSEAirportCoords() {
   }
 }
 
-// FETCH FLIGHT LOG from log.jsp — extracts individual flights and saves to pireps
+// FETCH FLIGHT LOG from log.jsp using Puppeteer so DataTables fully renders
 async function fetchLog() {
+  let browser;
   try {
     if (!db) initFirebase();
-    console.log('📡 Fetching flight log...');
+    console.log('📡 Fetching flight log (Puppeteer)...');
 
-    const response = await axios.get(
-      FSE_CONFIG.baseUrl + '/log.jsp?groupid=' + FSE_CONFIG.groupId,
-      {
-        headers: {
-          'Cookie': sessionCookies,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Referer': FSE_CONFIG.baseUrl + '/home.jsp'
-        },
-        timeout: 15000,
-        validateStatus: function() { return true; }
-      }
-    );
+    const puppeteer = require('puppeteer');
+    browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
 
-    console.log('   Response: ' + response.status + ', Size: ' + response.data.length + ' bytes');
+    // Restore the authenticated session
+    const cookiePairs = sessionCookies.split('; ').map(function(pair) {
+      const idx = pair.indexOf('=');
+      return { name: pair.slice(0, idx), value: pair.slice(idx + 1), domain: 'server.fseconomy.net' };
+    });
+    await page.setCookie(...cookiePairs);
 
-    if (response.data.length < 200 || (response.data.includes('Log in') && !response.data.includes('Log out'))) {
-      console.warn('⚠️  Could not load flight log');
+    await page.goto(FSE_CONFIG.baseUrl + '/log.jsp?groupid=' + FSE_CONFIG.groupId, { waitUntil: 'networkidle2', timeout: 30000 });
+
+    // Show all entries so DataTables renders everything
+    try {
+      await page.select('select[name*="DataTables_Table"], select[name*="length"]', '-1');
+      await new Promise(r => setTimeout(r, 2000));
+    } catch (e) {
+      await new Promise(r => setTimeout(r, 2000));
+    }
+
+    const html = await page.content();
+    await browser.close();
+    browser = null;
+
+    console.log('   Log page size: ' + html.length + ' bytes');
+
+    if (html.includes('Log in') && !html.includes('Log out')) {
+      console.warn('⚠️  Log page returned login screen — session expired');
       return { flights: 0, hoursFlown: 0 };
     }
 
-    const $ = cheerio.load(response.data);
+    const $ = cheerio.load(html);
     let totalMinutes = 0;
     const pireps = [];
     let totalEarnings = 0;
@@ -709,6 +722,7 @@ async function fetchLog() {
 
     return { flights: flightCount, hoursFlown: parseFloat(hoursFlown) };
   } catch (error) {
+    if (browser) try { await browser.close(); } catch(e) {}
     console.error('❌ Flight log fetch failed:', error.message);
     return { flights: 0, hoursFlown: 0 };
   }
