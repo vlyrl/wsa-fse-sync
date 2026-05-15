@@ -1165,11 +1165,20 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
       <div>
         <div class="footer-col-title">Community</div>
         <ul class="footer-links">
-          <li><a href="#">Discord Server</a></li>
-          <li><a href="#">FSEconomy Profile</a></li>
-          <li><a href="roster.html">Join the Roster</a></li>
+          <li><a href="https://discord.gg/33vzVRdDZ6" target="_blank" rel="noopener">Discord Server</a></li>
+          <li><a href="https://server.fseconomy.net/index.jsp" target="_blank" rel="noopener">FSEconomy Profile</a></li>
+          <li><a href="https://discord.gg/33vzVRdDZ6" target="_blank" rel="noopener">Join the Roster</a></li>
           <li><a href="#">Pilot Handbook</a></li>
         </ul>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:28px 0;margin-bottom:32px;display:flex;align-items:center;gap:28px;flex-wrap:wrap;">
+      <a href="https://www.vatsim.net" target="_blank" rel="noopener" style="flex-shrink:0;">
+        <img src="VATSIMLOGO.png" alt="VATSIM" style="height:52px;opacity:0.85;transition:opacity .2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.85'">
+      </a>
+      <div style="flex:1;min-width:220px;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:.35em;text-transform:uppercase;color:var(--gold);margin-bottom:6px;">Network Affiliation</div>
+        <div style="font-family:'Barlow',sans-serif;font-size:13px;color:var(--muted);line-height:1.65;">Western Skies Air is not yet an official VATSIM partner — but we proudly support the network and encourage all our pilots to take to the skies online. <a href="https://www.vatsim.net" target="_blank" rel="noopener" style="color:var(--gold);text-decoration:none;white-space:nowrap;">Explore VATSIM &rarr;</a></div>
       </div>
     </div>
     <div class="footer-bottom">
@@ -1233,11 +1242,11 @@ window.triggerMapSync = async function() {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer wsa-7kM9pL2xN4qR8vJd3wT6fYcE' }
     });
     const data = await res.json();
-    btn.textContent = data.success ? '&#10003; SYNCED' : '&#10007; FAILED';
+    btn.innerHTML = data.success ? '&#10003; SYNCED' : ('&#10007; ' + (data.error || 'FAILED'));
   } catch(e) {
-    btn.textContent = '&#10007; ERROR';
+    btn.innerHTML = '&#10007; ERROR';
   }
-  setTimeout(() => { btn.textContent = '↻ SYNC'; btn.disabled = false; btn.style.opacity = '1'; }, 3000);
+  setTimeout(() => { btn.innerHTML = '&#8635; SYNC'; btn.disabled = false; btn.style.opacity = '1'; }, 5000);
 };
 
 // Hamburger menu
