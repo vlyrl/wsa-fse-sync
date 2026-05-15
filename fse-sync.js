@@ -583,6 +583,10 @@ async function loadOurAirportsCoords() {
       const lon = parseFloat(parts[5]);
       if (isNaN(lat) || isNaN(lon)) continue;
       coords[ident] = [lat, lon];
+      // FSE uses 3-char FAA codes without the K prefix (e.g. "8F3" not "K8F3")
+      if (ident.length === 4 && ident[0] === 'K' && !coords[ident.slice(1)]) {
+        coords[ident.slice(1)] = [lat, lon];
+      }
       parsed++;
     }
     console.log('✅ Loaded ' + parsed + ' OurAirports coords');
