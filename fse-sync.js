@@ -522,6 +522,39 @@ app.listen(PORT, function() {
 });
 
 
+// Download OurAirports comprehensive database (covers small strips FSE misses)
+async function loadOurAirportsCoords() {
+  try {
+    console.log('📍 Loading OurAirports database...');
+    const res = await axios.get(
+      'https://ourairports.com/data/airports.csv',
+      { timeout: 30000, responseType: 'text' }
+    );
+    const lines = String(res.data).split('\n');
+    const coords = {};
+    let parsed = 0;
+    // Header: id,ident,type,name,latitude_deg,longitude_deg,...
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      const parts = line.split(',');
+      if (parts.length < 6) continue;
+      const ident = parts[1].replace(/"/g, '').trim().toUpperCase();
+      if (!ident) continue;
+      const lat = parseFloat(parts[4]);
+      const lon = parseFloat(parts[5]);
+      if (isNaN(lat) || isNaN(lon)) continue;
+      coords[ident] = [lat, lon];
+      parsed++;
+    }
+    console.log('✅ Loaded ' + parsed + ' OurAirports coords');
+    return coords;
+  } catch (err) {
+    console.warn('⚠️  OurAirports CSV unavailable:', err.message);
+    return {};
+  }
+}
+
 // Download FSEconomy's own airport coordinate database (no auth needed)
 async function loadFSEAirportCoords() {
   try {
@@ -690,8 +723,9 @@ async function fetchLog() {
     });
 
     // ── Resolve airport coordinates from FSE airport database ─
-    const fseCoords = await loadFSEAirportCoords();
-    const coordsMap = Object.assign({}, fseCoords, AIRPORT_COORDS);
+    const [fseCoords, ourCoords] = await Promise.all([loadFSEAirportCoords(), loadOurAirportsCoords()]);
+    // Priority: our manual table > FSE database > OurAirports (broadest coverage)
+    const coordsMap = Object.assign({}, ourCoords, fseCoords, AIRPORT_COORDS);
 
     const stillMissing = [...new Set(
       pireps.flatMap(p => [p.dep, p.arr]).filter(c => c && c !== '???' && !coordsMap[c])
