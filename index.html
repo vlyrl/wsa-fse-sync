@@ -1056,8 +1056,9 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
     <div class="section-title">ROUTE <span>MAP</span></div>
     <div class="section-sub">Every route flown by Western Skies Air &mdash; sourced live from our flight records.</div>
     <div id="route-map"></div>
-    <div class="map-legend">
-      <span id="map-route-count">&mdash;</span> unique routes plotted &middot; data from flight log<span id="map-missing"></span>
+    <div class="map-legend" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <span><span id="map-route-count">&mdash;</span> unique routes plotted &middot; data from flight log<span id="map-missing"></span></span>
+      <button id="map-sync-btn" onclick="triggerMapSync()" style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:.25em;text-transform:uppercase;color:var(--gold);border:1px solid rgba(200,134,10,0.4);background:transparent;padding:6px 16px;cursor:pointer;transition:background .2s,color .2s;">&#8635; SYNC</button>
     </div>
   </div>
 </div>
@@ -1219,6 +1220,25 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
     if(t){e.preventDefault();t.scrollIntoView({behavior:'smooth'});}
   });
 });
+
+// Map sync button
+window.triggerMapSync = async function() {
+  const btn = document.getElementById('map-sync-btn');
+  btn.textContent = 'SYNCING...';
+  btn.disabled = true;
+  btn.style.opacity = '0.5';
+  try {
+    const res = await fetch('https://wsa-fse-sync-production.up.railway.app/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer wsa-7kM9pL2xN4qR8vJd3wT6fYcE' }
+    });
+    const data = await res.json();
+    btn.textContent = data.success ? '&#10003; SYNCED' : '&#10007; FAILED';
+  } catch(e) {
+    btn.textContent = '&#10007; ERROR';
+  }
+  setTimeout(() => { btn.textContent = '↻ SYNC'; btn.disabled = false; btn.style.opacity = '1'; }, 3000);
+};
 
 // Hamburger menu
 window.toggleMobileMenu = function() {
