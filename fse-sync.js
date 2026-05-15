@@ -558,11 +558,23 @@ async function loadOurAirportsCoords() {
     const lines = String(res.data).split('\n');
     const coords = {};
     let parsed = 0;
+    function parseCSVLine(line) {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        if (line[i] === '"') { inQuotes = !inQuotes; }
+        else if (line[i] === ',' && !inQuotes) { result.push(current); current = ''; }
+        else { current += line[i]; }
+      }
+      result.push(current);
+      return result;
+    }
     // Header: id,ident,type,name,latitude_deg,longitude_deg,...
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
-      const parts = line.split(',');
+      const parts = parseCSVLine(line);
       if (parts.length < 6) continue;
       const ident = parts[1].replace(/"/g, '').trim().toUpperCase();
       if (!ident) continue;
