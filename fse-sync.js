@@ -519,6 +519,31 @@ app.listen(PORT, function() {
   console.log('\n✅ FSEconomy sync server listening on port ' + PORT);
   console.log('📍 POST http://localhost:' + PORT + '/sync - Trigger sync');
   console.log('🏥 GET  http://localhost:' + PORT + '/health - Health check\n');
+
+  // Auto-sync every 10 minutes
+  const SYNC_INTERVAL_MS = 10 * 60 * 1000;
+  setTimeout(async function autoSync() {
+    if (!syncInProgress) {
+      console.log('⏰ Auto-sync triggered');
+      syncInProgress = true;
+      try {
+        initFirebase();
+        const loginOk = await loginToFSE();
+        if (loginOk) {
+          await fetchData();
+          await fetchLog();
+          await checkNewPilots();
+          console.log('⏰ Auto-sync complete');
+        }
+      } catch(e) {
+        console.error('❌ Auto-sync error:', e.message);
+      } finally {
+        syncInProgress = false;
+      }
+    }
+    setTimeout(autoSync, SYNC_INTERVAL_MS);
+  }, SYNC_INTERVAL_MS);
+  console.log('⏰ Auto-sync scheduled every 10 minutes\n');
 });
 
 
