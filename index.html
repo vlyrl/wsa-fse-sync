@@ -528,7 +528,7 @@
   document.addEventListener('DOMContentLoaded', function() {
     const mapEl = document.getElementById('route-map');
     if (!mapEl || !window.L) return;
-    leafletMap = L.map('route-map', { center:[32.5,-99.5], zoom:5, zoomControl:true });
+    leafletMap = L.map('route-map', { center:[32.5,-99.5], zoom:5, zoomControl:true, scrollWheelZoom:false });
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
       maxZoom:19, subdomains:'abcd'
@@ -802,7 +802,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
 .nav-hamburger.open span:nth-child(3) { transform:translateY(-7px) rotate(-45deg); }
 
 /* ── Mobile slide-down menu (hidden on desktop) ── */
-.mobile-menu { display:none; position:fixed; top:64px; left:0; right:0; bottom:0; background:rgba(8,8,8,0.98); backdrop-filter:blur(16px); z-index:99; overflow-y:auto; padding:32px 24px 48px; flex-direction:column; }
+.mobile-menu { display:none; position:fixed; top:64px; left:0; right:0; bottom:0; background:rgba(8,8,8,0.98); backdrop-filter:blur(16px); z-index:1100; overflow-y:auto; padding:32px 24px 48px; flex-direction:column; }
 .mobile-menu.open { display:flex; }
 .mobile-menu-links { list-style:none; margin-bottom:32px; }
 .mobile-menu-links li { border-bottom:1px solid var(--border); }
@@ -869,9 +869,9 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
 }
 
 /* ROUTE MAP */
-.routemap-full { background:var(--surface); border-top:1px solid var(--border); border-bottom:1px solid var(--border); padding:80px 0; }
+.routemap-full { background:var(--surface); border-top:1px solid var(--border); border-bottom:1px solid var(--border); padding:48px 0; position:relative; z-index:0; }
 .routemap-inner { max-width:1100px; margin:0 auto; padding:0 48px; }
-#route-map { height:500px; margin-top:40px; border:1px solid var(--border); background:#050d1a; }
+#route-map { height:450px; margin-top:24px; border:1px solid var(--border); background:#050d1a; position:relative; overflow:hidden; isolation:isolate; }
 .map-legend { margin-top:12px; font-family:'Barlow Condensed',sans-serif; font-size:11px; letter-spacing:.25em; text-transform:uppercase; color:var(--muted); }
 .leaflet-container { font-family:'Barlow Condensed',sans-serif !important; background:#050d1a !important; }
 .map-tip.leaflet-tooltip { background:rgba(8,8,8,0.92) !important; border:1px solid #c8860a !important; border-radius:0 !important; color:#c8860a !important; font-family:'Bebas Neue',sans-serif !important; font-size:14px !important; letter-spacing:.1em !important; padding:4px 10px !important; white-space:nowrap !important; box-shadow:none !important; }
