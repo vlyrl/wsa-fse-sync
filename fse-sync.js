@@ -251,27 +251,13 @@ async function fetchJobs() {
         const cargo    = cell(cells, 7);
         const comment  = cell(cells, 8);
         const expires  = cell(cells, 9);
-        const col10    = cell(cells, 10);
-
-        // Status: "Locked" shows in col 0 if locked, otherwise Open
-        const lockCell = cell(cells, 0);
-        const status   = lockCell.toLowerCase().includes('lock') ? 'Locked' : 'Open';
-
+        // For enroute jobs FSEconomy puts the pilot's username in cell 0 (no checkbox)
+        // For open jobs cell 0 has the checkbox (empty text)
+        const cell0 = cell(cells, 0);
         const loc = location.toLowerCase();
         const isEnroute = loc.includes('enroute') || loc.includes('en route') || loc.includes('en-route') || loc.includes('[en');
-
-        if (isEnroute) {
-          // Collect ALL cell text so we can find which column has the pilot name
-          const allCells = [];
-          for (let ci = 0; ci < cells.length; ci++) allCells.push(ci + ':"' + cell(cells, ci) + '"');
-          console.log('🛩️  ENROUTE cells (' + from + '→' + dest + '):', allCells.join(' | '));
-          enrouteDebug.push({ from, dest, cells: allCells });
-        }
-
-        // Try every reasonable place FSEconomy might put the pilot name
-        const pilotFromLock = lockCell.match(/by\s+([a-z0-9][a-z0-9_.\- ]{1,30})/i)?.[1]?.trim() || '';
-        const pilotFromLoc  = location.match(/(?:en.?route|locked)[^a-z0-9]*([a-z0-9][a-z0-9_.\- ]{1,30})/i)?.[1]?.trim() || '';
-        const pilot = col10 || pilotFromLock || pilotFromLoc;
+        const pilot  = isEnroute ? cell0 : '';
+        const status = isEnroute ? 'Enroute' : (cell0.toLowerCase().includes('lock') ? 'Locked' : 'Open');
 
         if (!from && !pay) return;
 
