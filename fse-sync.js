@@ -40,6 +40,14 @@ const AIRPORT_COORDS = {
   '7TE7':[26.3837,-98.3337],
   E29:[30.5857,-100.649], KSOA:[30.5857,-100.649],
   '35TX':[32.4845,-99.826],
+  // Mexico
+  MMTC:[25.5683,-103.404],MMMY:[25.7785,-100.107],MMMX:[19.4363,-99.0721],
+  MMGL:[20.5218,-103.312],MMCU:[28.7029,-105.965],MMTJ:[32.5411,-116.970],
+  MMTO:[19.3371,-99.5661],MMCZ:[20.5224,-86.9256],MMVA:[20.6404,-103.220],
+  MMSM:[19.6671,-99.0119],MMSD:[23.1523,-109.721],MMLO:[21.2495,-101.481],
+  MMAS:[22.0000,-102.318],MMPE:[20.6453,-105.254],MMHO:[29.0959,-111.048],
+  MMCS:[31.6361,-106.429],MMMZ:[23.1614,-106.266],MMVR:[19.1459,-96.1873],
+  MMTM:[22.2964,-97.8659],MMMT:[25.0000,-105.000],
 };
 
 // Polyfill globals for Node.js 18 compatibility
@@ -211,6 +219,7 @@ async function fetchJobs() {
 
     const $ = cheerio.load(response.data);
     const jobs = [];
+    const enrouteDebug = [];
 
     $('table').each(function(ti, table) {
       // Detect the jobs table by checking if headers contain "From" and "Dest"
@@ -242,11 +251,27 @@ async function fetchJobs() {
         const cargo    = cell(cells, 7);
         const comment  = cell(cells, 8);
         const expires  = cell(cells, 9);
-        const pilot    = cell(cells, 10); // pilot name shown for enroute jobs
+        const col10    = cell(cells, 10);
 
         // Status: "Locked" shows in col 0 if locked, otherwise Open
         const lockCell = cell(cells, 0);
         const status   = lockCell.toLowerCase().includes('lock') ? 'Locked' : 'Open';
+
+        const loc = location.toLowerCase();
+        const isEnroute = loc.includes('enroute') || loc.includes('en route') || loc.includes('en-route') || loc.includes('[en');
+
+        if (isEnroute) {
+          // Collect ALL cell text so we can find which column has the pilot name
+          const allCells = [];
+          for (let ci = 0; ci < cells.length; ci++) allCells.push(ci + ':"' + cell(cells, ci) + '"');
+          console.log('🛩️  ENROUTE cells (' + from + '→' + dest + '):', allCells.join(' | '));
+          enrouteDebug.push({ from, dest, cells: allCells });
+        }
+
+        // Try every reasonable place FSEconomy might put the pilot name
+        const pilotFromLock = lockCell.match(/by\s+([a-z0-9][a-z0-9_.\- ]{1,30})/i)?.[1]?.trim() || '';
+        const pilotFromLoc  = location.match(/(?:en.?route|locked)[^a-z0-9]*([a-z0-9][a-z0-9_.\- ]{1,30})/i)?.[1]?.trim() || '';
+        const pilot = col10 || pilotFromLock || pilotFromLoc;
 
         if (!from && !pay) return;
 
@@ -278,6 +303,7 @@ async function fetchJobs() {
       }, {});
       await db.ref('jobsAvailable').set(jobObject);
       await db.ref('jobsLastSync').set(new Date().toISOString());
+      if (enrouteDebug.length) await db.ref('_debug/enrouteRows').set(enrouteDebug);
       console.log('✅ Jobs saved to Firebase');
     }
 
@@ -679,7 +705,7 @@ async function fetchLog() {
 
     // ── Resolve airport coordinates from FSE airport database ─
     const fseCoords = await loadFSEAirportCoords();
-    const coordsMap = Object.assign({}, AIRPORT_COORDS, fseCoords);
+    const coordsMap = Object.assign({}, fseCoords, AIRPORT_COORDS);
 
     const stillMissing = [...new Set(
       pireps.flatMap(p => [p.dep, p.arr]).filter(c => c && c !== '???' && !coordsMap[c])

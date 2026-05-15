@@ -393,8 +393,20 @@
       });
       const data = await res.json();
       result.textContent = data.success
-        ? 'Synced ' + (data.aircraftSynced || 0) + ' aircraft &middot; ' + new Date().toLocaleTimeString()
+        ? 'Synced ' + (data.aircraftSynced || 0) + ' aircraft · ' + new Date().toLocaleTimeString()
         : 'Error: ' + (data.error || 'Sync failed');
+      // Show enroute debug data if present
+      try {
+        const dbug = await get(ref(db, '_debug/enrouteRows'));
+        const debugEl = document.getElementById('enroute-debug');
+        if (debugEl && dbug.exists()) {
+          const rows = dbug.val();
+          debugEl.innerHTML = '<div style="font-size:11px;color:#aaa;margin-top:10px;font-family:monospace;white-space:pre-wrap;background:#111;padding:10px;border-radius:4px;overflow-x:auto;">'
+            + '<strong style="color:var(--gold)">Enroute cell dump (use this to find pilot column):</strong>\n'
+            + rows.map(r => r.from + '&rarr;' + r.dest + ':\n  ' + r.cells.join('\n  ')).join('\n\n')
+            + '</div>';
+        }
+      } catch(_) {}
     } catch (e) { result.textContent = 'Sync server not reachable'; }
     btn.disabled = false; btn.textContent = 'Trigger FSE Sync';
   };
@@ -616,6 +628,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
       </p>
       <button class="btn btn-gold" id="sync-btn" onclick="triggerSync()">Trigger FSE Sync</button>
       <div id="sync-result" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);margin-top:10px;letter-spacing:.05em;"></div>
+      <div id="enroute-debug"></div>
     </div>
 
   </div>
