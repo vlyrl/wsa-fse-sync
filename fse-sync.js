@@ -152,6 +152,18 @@ async function loginToFSE() {
     await page.type('input[name="user"]', FSE_CONFIG.username, { delay: 50 });
     await page.type('input[name="password"]', FSE_CONFIG.password, { delay: 50 });
 
+    // Check "Rules of Fair Play" checkbox if present
+    try {
+      const checkbox = await page.$('input[type="checkbox"]');
+      if (checkbox) {
+        const isChecked = await page.evaluate(el => el.checked, checkbox);
+        if (!isChecked) {
+          await checkbox.click();
+          console.log('   ✅ Checked Rules of Fair Play checkbox');
+        }
+      }
+    } catch(e) { /* checkbox not present, continue */ }
+
     console.log('   🖱️  Submitting login form...');
     await Promise.all([
       page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }),
