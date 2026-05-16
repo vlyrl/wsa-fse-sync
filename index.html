@@ -912,7 +912,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
   <ul class="nav-links">
     <li><a href="#fleet">Fleet</a></li>
     <li><a href="#map-section">Map</a></li>
-    <li><a href="#dispatch">Dispatch</a></li>
+
     <li><a href="#jobs">Jobs</a></li>
     <li><a href="#log">Flight Log</a></li>
     <li><a href="#about">About</a></li>
@@ -960,7 +960,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
   </svg>
   <div class="hero-content">
     <div class="hero-eyebrow">
-      FSEconomy Virtual Charter &middot; Est. 2025
+      FSEconomy &amp; FlyJetCard Virtual Charter &middot; Est. 2025
       <span class="live-badge"><span class="live-dot"></span>Live Data</span>
     </div>
     <div class="hero-title">WESTERN<br><span class="accent">SKIES</span><br><span class="outline">AIR</span></div>
@@ -1067,7 +1067,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
 <section class="section" id="live-ops-panel">
   <div class="section-eyebrow">Active Right Now</div>
   <div class="section-title">LIVE <span>OPERATIONS</span></div>
-  <div class="section-sub">Pilots currently airborne on FSEconomy assignments.</div>
+  <div class="section-sub">Pilots currently airborne on FSEconomy &amp; FlyJetCard assignments.</div>
   <div class="job-grid" id="live-ops-list"><div class="job-card empty">Loading...</div></div>
 </section>
 
@@ -1075,7 +1075,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
 <section class="section" id="jobs">
   <div class="section-eyebrow">Current Jobs</div>
   <div class="section-title">AVAILABLE <span>CHARTERS</span></div>
-  <div class="section-sub">Live FSEconomy group assignments for the WSA team, updated when the sync server runs. <strong id="jobs-count">0</strong> jobs available.</div>
+  <div class="section-sub">Live FSEconomy &amp; FlyJetCard group assignments for the WSA team, updated when the sync server runs. <strong id="jobs-count">0</strong> jobs available.</div>
   <div class="job-grid" id="jobs-list">
     <div class="job-card empty">Loading current jobs&hellip;</div>
   </div>
@@ -1114,9 +1114,9 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
     <div class="section-title">ABOUT <span>WSA</span></div>
     <div class="about-grid">
       <div class="about-text">
-        <p>Western Skies Air is a <strong>Texas-based virtual charter airline</strong> operating within FSEconomy. We focus on realistic, immersive general aviation operations across the Southern Plains &mdash; cargo runs, passenger charters, and executive flights.</p>
+        <p>Western Skies Air is a <strong>Texas-based virtual charter airline</strong> operating within FSEconomy and FlyJetCard. We focus on realistic, immersive general aviation operations across the Southern Plains &mdash; cargo runs, passenger charters, and executive flights.</p>
         <p>We value <strong>authentic flying</strong>: real weather, real procedures, real ATC communication, and aircraft that make sense for the region. Every flight logged here updates our live stats instantly.</p>
-        <p>Open to all skill levels. New pilots welcome &mdash; we'll get you familiar with FSEconomy and our ops culture quickly.</p>
+        <p>Open to all skill levels. New pilots welcome &mdash; we'll get you familiar with FSEconomy, FlyJetCard, and our ops culture quickly.</p>
       </div>
       <div class="about-card">
         <div class="section-eyebrow" style="margin-bottom:28px;">By the Numbers &mdash; Live</div>
@@ -1141,7 +1141,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
     <div class="footer-top">
       <div>
         <div class="footer-brand">WESTERN <span>SKIES</span> AIR</div>
-        <div class="footer-desc">Texas &amp; Southern Plains virtual charter operations. Based in FSEconomy. Flying the American Southwest with care and craft.</div>
+        <div class="footer-desc">Texas &amp; Southern Plains virtual charter operations. Based in FSEconomy &amp; FlyJetCard. Flying the American Southwest with care and craft.</div>
       </div>
       <div>
         <div class="footer-col-title">Navigation</div>
@@ -1163,6 +1163,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
         <ul class="footer-links">
           <li><a href="https://discord.gg/33vzVRdDZ6" target="_blank" rel="noopener">Discord Server</a></li>
           <li><a href="https://server.fseconomy.net/index.jsp" target="_blank" rel="noopener">FSEconomy Profile</a></li>
+          <li><a href="https://flyjetcard.io" target="_blank" rel="noopener">FlyJetCard Profile</a></li>
           <li><a href="https://discord.gg/33vzVRdDZ6" target="_blank" rel="noopener">Join the Roster</a></li>
           <li><a href="#">Pilot Handbook</a></li>
         </ul>
@@ -1179,7 +1180,7 @@ footer { background:#070707; border-top:1px solid var(--border); padding:60px 48
     </div>
     <div class="footer-bottom">
       <div class="footer-copy">© 2025&ndash;Present Western Skies Air &middot; Virtual Operations &middot; All rights reserved</div>
-      <div class="footer-fse">A FSEconomy Virtual Airline &middot; For Simulation Purposes Only</div>
+      <div class="footer-fse">A FSEconomy &amp; FlyJetCard Virtual Airline &middot; For Simulation Purposes Only</div>
     </div>
   </div>
 </footer>
@@ -1210,7 +1211,7 @@ for (let i = 0; i < 120; i++) {
 }
 
 // Ticker
-const items=['Live Data Powered by Firebase','File Your PIREP Today','Texas & Southern Plains Ops','FSEconomy Virtual Charter','Blue Skies Ahead','Join the Roster'];
+const items=['Live Data Powered by Firebase','File Your PIREP Today','Texas & Southern Plains Ops','FSEconomy & FlyJetCard','Blue Skies Ahead','Join the Roster'];
 const inner=document.getElementById('ticker-inner');
 [...items,...items].forEach((t,i)=>{
   const d=document.createElement('span');d.className='ticker-item';
