@@ -484,6 +484,11 @@ async function fetchLog() {
           console.log('   📄 Flightlog sample (' + month + '/' + year + '):', String(res.data).substring(0, 300));
         }
         const $ = cheerio.load(res.data, { xmlMode: true });
+        // Log the first entry's raw XML so we can see exact field names
+        const firstEntry = $('FlightLog').first();
+        if (firstEntry.length && month === now.getMonth() + 1 && year === now.getFullYear()) {
+          console.log('   🔍 First FlightLog XML:', firstEntry.toString().substring(0, 800));
+        }
         $('FlightLog').each(function(i, el) {
           const type     = $(el).find('Type').text().trim().toLowerCase();
           if (type && type !== 'flight') return; // skip bonus/payment entries
