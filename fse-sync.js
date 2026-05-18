@@ -115,7 +115,6 @@ async function fetchJobs() {
     console.log('📡 Fetching group assignments via API...');
     const url = FSE_API + '?userkey=' + FSE_USER_KEY + '&format=xml&query=assignments&search=key&readaccesskey=' + FSE_READ_KEY;
     const res = await axios.get(url, { timeout: 20000, responseType: 'text' });
-    console.log('   📄 Jobs API response (' + res.status + '):', String(res.data).substring(0, 400));
     const $ = cheerio.load(res.data, { xmlMode: true });
     const jobs = [];
 
@@ -158,7 +157,6 @@ async function fetchData() {
     console.log('📡 Fetching aircraft via API...');
     const url = FSE_API + '?userkey=' + FSE_USER_KEY + '&format=xml&query=aircraft&search=key&readaccesskey=' + FSE_READ_KEY;
     const res = await axios.get(url, { timeout: 20000, responseType: 'text' });
-    console.log('   📄 Aircraft API response (' + res.status + '):', String(res.data).substring(0, 400));
     const $ = cheerio.load(res.data, { xmlMode: true });
     const aircraft = [];
     const liveOps  = [];
@@ -475,21 +473,12 @@ async function fetchLog() {
     const pireps = [];
     let totalMinutes = 0;
     let totalEarnings = 0;
-    let debugLogged = false;
-
     for (const { month, year } of months) {
       const url = FSE_API + '?userkey=' + FSE_USER_KEY + '&format=xml&query=flightlogs&search=monthyear&readaccesskey=' + FSE_READ_KEY + '&month=' + month + '&year=' + year;
       try {
         const res = await axios.get(url, { timeout: 20000, responseType: 'text' });
         const $ = cheerio.load(res.data, { xmlMode: true });
-        // Log the first FlightLog entry we find, from any month
-        if (!debugLogged && $('FlightLog').length > 0) {
-          console.log('   🔍 First FlightLog XML (' + month + '/' + year + '):', $('FlightLog').first().toString().substring(0, 1000));
-          debugLogged = true;
-        }
         $('FlightLog').each(function(i, el) {
-          const type     = $(el).find('Type').text().trim().toLowerCase();
-          if (type && type !== 'flight') return; // skip bonus/payment entries
           const pilot    = $(el).find('Pilot').text().trim() || 'Unknown';
           // Date: FSE returns "2026/05/13 06:19:48" in <Time> field
           const dateRaw  = $(el).find('Time').text().trim();
@@ -551,24 +540,9 @@ async function fetchLog() {
       });
 
       if (pireps.length) {
-        // Log every pirep we're about to write
-        pireps.forEach(function(p, i) {
-          console.log('   ✈️  flight-' + i + ': ' + p.dep + ' → ' + p.arr +
-            ' depLat=' + p.depLat + ' arrLat=' + p.arrLat);
-        });
         const pirepsObj = {};
-        pireps.forEach(function(p, i) {
-          pirepsObj['flight-' + i] = p;
-        });
+        pireps.forEach(function(p, i) { pirepsObj['flight-' + i] = p; });
         await db.ref('pireps').set(pirepsObj);
-        // Read back immediately to verify
-        const verify = await db.ref('pireps').once('value');
-        const writtenCount = verify.exists() ? Object.keys(verify.val()).length : 0;
-        console.log('✅ Firebase write verified: ' + writtenCount + ' pireps in DB (expected ' + pireps.length + ')');
-        if (writtenCount !== pireps.length) {
-          console.error('❌ MISMATCH — Firebase has ' + writtenCount + ' but we wrote ' + pireps.length);
-          console.error('   Firebase keys: ' + (verify.exists() ? Object.keys(verify.val()).join(', ') : 'none'));
-        }
       }
 
       // Auto-update each pilot's totalHours by matching fseUsername
