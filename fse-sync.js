@@ -475,19 +475,17 @@ async function fetchLog() {
     const pireps = [];
     let totalMinutes = 0;
     let totalEarnings = 0;
+    let debugLogged = false;
 
     for (const { month, year } of months) {
       const url = FSE_API + '?userkey=' + FSE_USER_KEY + '&format=xml&query=flightlogs&search=monthyear&readaccesskey=' + FSE_READ_KEY + '&month=' + month + '&year=' + year;
       try {
         const res = await axios.get(url, { timeout: 20000, responseType: 'text' });
-        if (month === now.getMonth() + 1 && year === now.getFullYear()) {
-          console.log('   📄 Flightlog sample (' + month + '/' + year + '):', String(res.data).substring(0, 300));
-        }
         const $ = cheerio.load(res.data, { xmlMode: true });
-        // Log the first entry's raw XML so we can see exact field names
-        const firstEntry = $('FlightLog').first();
-        if (firstEntry.length && month === now.getMonth() + 1 && year === now.getFullYear()) {
-          console.log('   🔍 First FlightLog XML:', firstEntry.toString().substring(0, 800));
+        // Log the first FlightLog entry we find, from any month
+        if (!debugLogged && $('FlightLog').length > 0) {
+          console.log('   🔍 First FlightLog XML (' + month + '/' + year + '):', $('FlightLog').first().toString().substring(0, 1000));
+          debugLogged = true;
         }
         $('FlightLog').each(function(i, el) {
           const type     = $(el).find('Type').text().trim().toLowerCase();
