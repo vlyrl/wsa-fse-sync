@@ -395,36 +395,10 @@
       result.textContent = data.success
         ? 'Synced ' + (data.aircraftSynced || 0) + ' aircraft · ' + new Date().toLocaleTimeString()
         : 'Error: ' + (data.error || 'Sync failed');
-      // Show enroute debug data if present
-      try {
-        const dbug = await get(ref(db, '_debug/enrouteRows'));
-        const debugEl = document.getElementById('enroute-debug');
-        if (debugEl && dbug.exists()) {
-          const rows = dbug.val();
-          debugEl.innerHTML = '<div style="font-size:11px;color:#aaa;margin-top:10px;font-family:monospace;white-space:pre-wrap;background:#111;padding:10px;border-radius:4px;overflow-x:auto;">'
-            + '<strong style="color:var(--gold)">Enroute cell dump (use this to find pilot column):</strong>\n'
-            + rows.map(r => r.from + '&rarr;' + r.dest + ':\n  ' + r.cells.join('\n  ')).join('\n\n')
-            + '</div>';
-        }
-      } catch(_) {}
     } catch (e) { result.textContent = 'Sync server not reachable'; }
     btn.disabled = false; btn.textContent = 'Trigger FSE Sync';
   };
 
-  // ── Job debug ─────────────────────────────────────────────────
-  window.showJobDebug = async function() {
-    const el = document.getElementById('job-debug');
-    el.style.display = 'block';
-    el.textContent = 'Loading...';
-    try {
-      const snap = await get(ref(db, 'jobsAvailable'));
-      if (!snap.exists()) { el.textContent = 'No jobs in Firebase.'; return; }
-      const jobs = Object.values(snap.val());
-      el.textContent = jobs.map(j =>
-        `from:${j.from} dest:${j.dest}\n  location:"${j.location}"\n  pilot:"${j.pilot}"\n  status:${j.status}`
-      ).join('\n\n');
-    } catch(e) { el.textContent = 'Error: ' + e.message; }
-  };
 
   // ── Sign out ──────────────────────────────────────────────────
   window.doSignOut = async function() {
@@ -643,11 +617,6 @@ tr:hover td { background: rgba(255,255,255,0.02); }
       </p>
       <button class="btn btn-gold" id="sync-btn" onclick="triggerSync()">Trigger FSE Sync</button>
       <div id="sync-result" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);margin-top:10px;letter-spacing:.05em;"></div>
-      <div id="enroute-debug"></div>
-      <div class="divider" style="margin-top:16px;"></div>
-      <div class="card-sub" style="margin-bottom:8px;">Job Debug</div>
-      <button class="btn btn-outline" style="font-size:10px;padding:6px 16px;" onclick="showJobDebug()">Read Raw Jobs from Firebase</button>
-      <div id="job-debug" style="font-size:11px;font-family:monospace;color:#aaa;margin-top:10px;white-space:pre-wrap;background:#111;padding:10px;border-radius:4px;display:none;overflow-x:auto;max-height:300px;overflow-y:auto;"></div>
     </div>
 
   </div>

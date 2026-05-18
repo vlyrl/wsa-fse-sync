@@ -6,8 +6,7 @@
   "scripts": {
     "start": "node fse-sync.js",
     "dev": "nodemon fse-sync.js",
-    "sync": "node -e \"require('./fse-sync.js').syncFSEData().then(console.log)\"",
-    "test-firebase": "node test-firebase.js"
+    "sync": "node -e \"require('./fse-sync.js').syncFSEData().then(console.log)\""
   },
   "dependencies": {
     "axios": "^1.6.0",

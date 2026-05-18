@@ -51,27 +51,6 @@ const AIRPORT_COORDS = {
   MMTM:[22.2964,-97.8659],MMMT:[25.0000,-105.000],
 };
 
-// Polyfill globals for Node.js 18 compatibility
-if (typeof global.ReadableStream === 'undefined') {
-  try {
-    const { ReadableStream, WritableStream, TransformStream } = require('stream/web');
-    global.ReadableStream = ReadableStream;
-    global.WritableStream = WritableStream;
-    global.TransformStream = TransformStream;
-    console.log('✅ stream/web polyfill loaded');
-  } catch (err) {
-    console.warn('⚠️  stream/web polyfill unavailable:', err.message);
-  }
-}
-if (typeof global.File === 'undefined') {
-  try {
-    const { File } = require('buffer');
-    global.File = File;
-    console.log('✅ File polyfill loaded');
-  } catch (err) {
-    console.warn('⚠️  File polyfill unavailable:', err.message);
-  }
-}
 
 const express = require('express');
 const { Resend } = require('resend');
