@@ -1,6 +1,11 @@
 require('dotenv').config();
 const fs = require('fs');
 
+// Node.js 18 doesn't have File as a global — firebase-admin's undici dependency needs it
+if (typeof global.File === 'undefined') {
+  try { const { File } = require('buffer'); global.File = File; } catch (_) {}
+}
+
 // Airport lat/lon used to tag pireps at sync time so the map never needs a client-side lookup
 const AIRPORT_COORDS = {
   KABI:[32.4113,-99.6819],KACT:[31.6113,-97.2305],KADS:[32.9682,-96.8351],
