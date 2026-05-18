@@ -490,14 +490,24 @@ async function fetchLog() {
         $('FlightLog').each(function(i, el) {
           const type     = $(el).find('Type').text().trim().toLowerCase();
           if (type && type !== 'flight') return; // skip bonus/payment entries
-          const pilot    = $(el).find('Pilot').text().trim()    || 'Unknown';
-          const dateRaw  = $(el).find('Date').text().trim();
-          const date     = dateRaw ? dateRaw.split('T')[0].split(' ')[0] : new Date().toISOString().slice(0, 10);
-          const flightTime = parseFloat($(el).find('FlightTime').text()) || 0;
-          const aircraft = $(el).find('Aircraft').text().trim() || $(el).find('Registration').text().trim() || 'Unknown';
+          const pilot    = $(el).find('Pilot').text().trim() || 'Unknown';
+          // Date: FSE returns "2026/05/13 06:19:48" in <Time> field
+          const dateRaw  = $(el).find('Time').text().trim();
+          const date     = dateRaw ? dateRaw.split(' ')[0].replace(/\//g, '-') : new Date().toISOString().slice(0, 10);
+          // FlightTime: FSE returns "H:MM" format e.g. "0:46" or "2:15"
+          const ftRaw    = $(el).find('FlightTime').text().trim();
+          const ftMatch  = ftRaw.match(/(\d+):(\d+)/);
+          const flightTime = ftMatch ? (parseInt(ftMatch[1]) + parseInt(ftMatch[2]) / 60) : 0;
+          const aircraft = $(el).find('Aircraft').text().trim() || 'Unknown';
           const dep      = $(el).find('From').text().trim().toUpperCase() || '???';
           const arr      = $(el).find('To').text().trim().toUpperCase()   || '???';
-          const earnings = parseFloat($(el).find('GrossEarnings').text()) || 0;
+          // Earnings: GCF is gross charter fee, subtract costs for net
+          const gcf        = parseFloat($(el).find('GCF').text())        || 0;
+          const bonus      = parseFloat($(el).find('Bonus').text())      || 0;
+          const rentalCost = parseFloat($(el).find('RentalCost').text()) || 0;
+          const fuelCost   = parseFloat($(el).find('FuelCost').text())   || 0;
+          const bookingFee = parseFloat($(el).find('BookingFee').text()) || 0;
+          const earnings   = parseFloat((gcf + bonus - rentalCost - fuelCost - bookingFee).toFixed(2));
 
           if (dep === '???' && arr === '???') return;
 
