@@ -62,8 +62,8 @@ const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Validate environment variables first
-if (!process.env.FSE_SERVICE_KEY || !process.env.RESEND_API_KEY || !process.env.SYNC_SECRET) {
-  console.error('❌ ERROR: FSE_SERVICE_KEY, RESEND_API_KEY, and SYNC_SECRET environment variables must be set!');
+if (!process.env.FSE_USER_KEY || !process.env.FSE_SERVICE_KEY || !process.env.RESEND_API_KEY || !process.env.SYNC_SECRET) {
+  console.error('❌ ERROR: FSE_USER_KEY, FSE_SERVICE_KEY, RESEND_API_KEY, and SYNC_SECRET must be set!');
   process.exit(1);
 }
 
@@ -104,16 +104,16 @@ function initFirebase() {
   }
 }
 
-const FSE_API  = 'https://server.fseconomy.net/data';
-const FSE_KEY  = process.env.FSE_SERVICE_KEY;
-const FSE_GROUP = '109630';
+const FSE_API      = 'https://server.fseconomy.net/data';
+const FSE_USER_KEY = process.env.FSE_USER_KEY;   // WestonK personal key (auth)
+const FSE_READ_KEY = process.env.FSE_SERVICE_KEY; // Western Skies Air LLC group key (data access)
 
 // FETCH JOBS via FSEconomy Data Feeds API
 async function fetchJobs() {
   try {
     if (!db) initFirebase();
     console.log('📡 Fetching group assignments via API...');
-    const url = FSE_API + '?servicekey=' + FSE_KEY + '&format=xml&query=assignments&search=group&groupid=' + FSE_GROUP;
+    const url = FSE_API + '?userkey=' + FSE_USER_KEY + '&format=xml&query=assignments&search=key&readaccesskey=' + FSE_READ_KEY;
     const res = await axios.get(url, { timeout: 20000, responseType: 'text' });
     console.log('   📄 Jobs API response (' + res.status + '):', String(res.data).substring(0, 400));
     const $ = cheerio.load(res.data, { xmlMode: true });
@@ -156,7 +156,7 @@ async function fetchData() {
   try {
     if (!db) initFirebase();
     console.log('📡 Fetching aircraft via API...');
-    const url = FSE_API + '?servicekey=' + FSE_KEY + '&format=xml&query=aircraft&search=group&groupid=' + FSE_GROUP;
+    const url = FSE_API + '?userkey=' + FSE_USER_KEY + '&format=xml&query=aircraft&search=key&readaccesskey=' + FSE_READ_KEY;
     const res = await axios.get(url, { timeout: 20000, responseType: 'text' });
     console.log('   📄 Aircraft API response (' + res.status + '):', String(res.data).substring(0, 400));
     const $ = cheerio.load(res.data, { xmlMode: true });
@@ -462,17 +462,29 @@ async function loadFSEAirportCoords() {
 async function fetchLog() {
   try {
     if (!db) initFirebase();
-    console.log('📡 Fetching flight log via API...');
-    const url = FSE_API + '?servicekey=' + FSE_KEY + '&format=xml&query=flightlogs&search=group&groupid=' + FSE_GROUP;
-    const res = await axios.get(url, { timeout: 30000, responseType: 'text' });
-    console.log('   📄 Flightlog API response (' + res.status + '):', String(res.data).substring(0, 400));
-    const $ = cheerio.load(res.data, { xmlMode: true });
+    console.log('📡 Fetching flight log via API (month by month)...');
+
+    // FSEconomy flight logs must be fetched one month at a time
+    const now = new Date();
+    const months = [];
+    for (let m = 0; m < 18; m++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - m, 1);
+      months.push({ month: d.getMonth() + 1, year: d.getFullYear() });
+    }
 
     const pireps = [];
     let totalMinutes = 0;
     let totalEarnings = 0;
 
-    $('FlightReport').each(function(i, el) {
+    for (const { month, year } of months) {
+      const url = FSE_API + '?userkey=' + FSE_USER_KEY + '&format=xml&query=flightlogs&search=monthyear&readaccesskey=' + FSE_READ_KEY + '&month=' + month + '&year=' + year;
+      try {
+        const res = await axios.get(url, { timeout: 20000, responseType: 'text' });
+        if (month === now.getMonth() + 1 && year === now.getFullYear()) {
+          console.log('   📄 Flightlog sample (' + month + '/' + year + '):', String(res.data).substring(0, 300));
+        }
+        const $ = cheerio.load(res.data, { xmlMode: true });
+        $('FlightReport').each(function(i, el) {
       const pilot    = $(el).find('Pilot').text().trim()    || 'Unknown';
       const dateRaw  = $(el).find('Date').text().trim();
       const date     = dateRaw ? dateRaw.split('T')[0].split(' ')[0] : new Date().toISOString().slice(0, 10);
@@ -484,12 +496,16 @@ async function fetchLog() {
 
       if (dep === '???' && arr === '???') return;
 
-      totalMinutes  += flightTime * 60;
-      totalEarnings += earnings;
-      pireps.push({ date, dep, arr, aircraft, pilot,
-        blockTime: parseFloat(flightTime.toFixed(2)), earnings });
-    });
-    console.log('   Found ' + pireps.length + ' flight reports');
+          totalMinutes  += flightTime * 60;
+          totalEarnings += earnings;
+          pireps.push({ date, dep, arr, aircraft, pilot,
+            blockTime: parseFloat(flightTime.toFixed(2)), earnings });
+        });
+      } catch (monthErr) {
+        console.warn('   ⚠️  Failed to fetch ' + month + '/' + year + ':', monthErr.message);
+      }
+    }
+    console.log('   Found ' + pireps.length + ' flight reports across 18 months');
 
     // ── Resolve airport coordinates from FSE airport database ─
     const [fseCoords, ourCoords] = await Promise.all([loadFSEAirportCoords(), loadOurAirportsCoords()]);
