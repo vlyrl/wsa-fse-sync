@@ -484,17 +484,19 @@ async function fetchLog() {
           console.log('   📄 Flightlog sample (' + month + '/' + year + '):', String(res.data).substring(0, 300));
         }
         const $ = cheerio.load(res.data, { xmlMode: true });
-        $('FlightReport').each(function(i, el) {
-      const pilot    = $(el).find('Pilot').text().trim()    || 'Unknown';
-      const dateRaw  = $(el).find('Date').text().trim();
-      const date     = dateRaw ? dateRaw.split('T')[0].split(' ')[0] : new Date().toISOString().slice(0, 10);
-      const flightTime = parseFloat($(el).find('FlightTime').text()) || 0;
-      const aircraft = $(el).find('Aircraft').text().trim() || 'Unknown';
-      const dep      = $(el).find('From').text().trim().toUpperCase() || '???';
-      const arr      = $(el).find('To').text().trim().toUpperCase()   || '???';
-      const earnings = parseFloat($(el).find('GrossEarnings').text()) || 0;
+        $('FlightLog').each(function(i, el) {
+          const type     = $(el).find('Type').text().trim().toLowerCase();
+          if (type && type !== 'flight') return; // skip bonus/payment entries
+          const pilot    = $(el).find('Pilot').text().trim()    || 'Unknown';
+          const dateRaw  = $(el).find('Date').text().trim();
+          const date     = dateRaw ? dateRaw.split('T')[0].split(' ')[0] : new Date().toISOString().slice(0, 10);
+          const flightTime = parseFloat($(el).find('FlightTime').text()) || 0;
+          const aircraft = $(el).find('Aircraft').text().trim() || $(el).find('Registration').text().trim() || 'Unknown';
+          const dep      = $(el).find('From').text().trim().toUpperCase() || '???';
+          const arr      = $(el).find('To').text().trim().toUpperCase()   || '???';
+          const earnings = parseFloat($(el).find('GrossEarnings').text()) || 0;
 
-      if (dep === '???' && arr === '???') return;
+          if (dep === '???' && arr === '???') return;
 
           totalMinutes  += flightTime * 60;
           totalEarnings += earnings;
