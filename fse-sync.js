@@ -501,13 +501,8 @@ async function fetchLog() {
           const aircraft = $(el).find('Aircraft').text().trim() || 'Unknown';
           const dep      = $(el).find('From').text().trim().toUpperCase() || '???';
           const arr      = $(el).find('To').text().trim().toUpperCase()   || '???';
-          // Earnings: GCF is gross charter fee, subtract costs for net
-          const gcf        = parseFloat($(el).find('GCF').text())        || 0;
-          const bonus      = parseFloat($(el).find('Bonus').text())      || 0;
-          const rentalCost = parseFloat($(el).find('RentalCost').text()) || 0;
-          const fuelCost   = parseFloat($(el).find('FuelCost').text())   || 0;
-          const bookingFee = parseFloat($(el).find('BookingFee').text()) || 0;
-          const earnings   = parseFloat((gcf + bonus - rentalCost - fuelCost - bookingFee).toFixed(2));
+          // Earnings: GCF = Pay For Assignment (gross charter fee from FS Economy)
+          const earnings = parseFloat($(el).find('GCF').text()) || 0;
 
           if (dep === '???' && arr === '???') return;
 
