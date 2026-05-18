@@ -115,6 +115,7 @@ async function fetchJobs() {
     console.log('📡 Fetching group assignments via API...');
     const url = FSE_API + '?servicekey=' + FSE_KEY + '&format=xml&query=assignments&search=group&groupid=' + FSE_GROUP;
     const res = await axios.get(url, { timeout: 20000, responseType: 'text' });
+    console.log('   📄 Jobs API response (' + res.status + '):', String(res.data).substring(0, 400));
     const $ = cheerio.load(res.data, { xmlMode: true });
     const jobs = [];
 
@@ -157,6 +158,7 @@ async function fetchData() {
     console.log('📡 Fetching aircraft via API...');
     const url = FSE_API + '?servicekey=' + FSE_KEY + '&format=xml&query=aircraft&search=group&groupid=' + FSE_GROUP;
     const res = await axios.get(url, { timeout: 20000, responseType: 'text' });
+    console.log('   📄 Aircraft API response (' + res.status + '):', String(res.data).substring(0, 400));
     const $ = cheerio.load(res.data, { xmlMode: true });
     const aircraft = [];
     const liveOps  = [];
@@ -463,6 +465,7 @@ async function fetchLog() {
     console.log('📡 Fetching flight log via API...');
     const url = FSE_API + '?servicekey=' + FSE_KEY + '&format=xml&query=flightlogs&search=group&groupid=' + FSE_GROUP;
     const res = await axios.get(url, { timeout: 30000, responseType: 'text' });
+    console.log('   📄 Flightlog API response (' + res.status + '):', String(res.data).substring(0, 400));
     const $ = cheerio.load(res.data, { xmlMode: true });
 
     const pireps = [];
